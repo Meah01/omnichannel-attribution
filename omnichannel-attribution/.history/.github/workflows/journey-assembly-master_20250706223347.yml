@@ -1,0 +1,532 @@
+# .github/workflows/journey-assembly-master.yml
+# Main orchestration workflow - runs every 3 days at 3 AM Amsterdam time
+name: Journey Assembly Master Orchestration
+
+on:
+  schedule:
+    # Every 3 days at 3:00 AM Amsterdam time (1:00 AM UTC)
+    - cron: '0 1 */3 * *'
+  workflow_dispatch:
+    inputs:
+      force_run:
+        description: 'Force run even if system is disabled'
+        required: false
+        default: 'false'
+        type: boolean
+      days_to_collect:
+        description: 'Number of days of data to collect'
+        required: false
+        default: '3'
+        type: string
+
+env:
+  # System control environment variables
+  JOURNEY_ASSEMBLY_ENABLED: ${{ vars.JOURNEY_ASSEMBLY_ENABLED || 'true' }}
+  IMMEDIATE_STOP: ${{ vars.IMMEDIATE_STOP || 'false' }}
+  
+  # API endpoints
+  JOURNEY_ASSEMBLER_URL: ${{ vars.JOURNEY_ASSEMBLER_URL || 'http://localhost:8008' }}
+  
+  # Generator endpoints  
+  GOOGLE_ADS_API: ${{ vars.GOOGLE_ADS_API || 'http://localhost:8000' }}
+  FACEBOOK_ADS_API: ${{ vars.FACEBOOK_ADS_API || 'http://localhost:8001' }}
+  EMAIL_MARKETING_API: ${{ vars.EMAIL_MARKETING_API || 'http://localhost:8002' }}
+  LINKEDIN_ADS_API: ${{ vars.LINKEDIN_ADS_API || 'http://localhost:8003' }}
+  EVENTS_API: ${{ vars.EVENTS_API || 'http://localhost:8004' }}
+  WEBSITE_SEO_API: ${{ vars.WEBSITE_SEO_API || 'http://localhost:8005' }}
+  APP_STORE_API: ${{ vars.APP_STORE_API || 'http://localhost:8006' }}
+  ORGANIC_SOCIAL_API: ${{ vars.ORGANIC_SOCIAL_API || 'http://localhost:8007' }}
+
+jobs:
+  check-system-status:
+    name: Check System Status
+    runs-on: ubuntu-latest
+    outputs:
+      system_enabled: ${{ steps.status-check.outputs.enabled }}
+      processing_status: ${{ steps.status-check.outputs.status }}
+    
+    steps:
+      - name: Check Journey Assembly Status
+        id: status-check
+        run: |
+          # Check if system is enabled via environment variables
+          if [[ "${{ env.JOURNEY_ASSEMBLY_ENABLED }}" == "true" && "${{ env.IMMEDIATE_STOP }}" == "false" ]]; then
+            echo "enabled=true" >> $GITHUB_OUTPUT
+            echo "status=ready" >> $GITHUB_OUTPUT
+            echo "✅ Journey Assembly System: ENABLED"
+          else
+            echo "enabled=false" >> $GITHUB_OUTPUT  
+            echo "status=disabled" >> $GITHUB_OUTPUT
+            echo "❌ Journey Assembly System: DISABLED"
+          fi
+          
+          # Override for manual force run
+          if [[ "${{ inputs.force_run }}" == "true" ]]; then
+            echo "enabled=true" >> $GITHUB_OUTPUT
+            echo "status=force_enabled" >> $GITHUB_OUTPUT
+            echo "🔧 Force run enabled - overriding system status"
+          fi
+
+      - name: Check Journey Assembler API Health
+        if: steps.status-check.outputs.enabled == 'true'
+        run: |
+          echo "🔍 Checking Journey Assembler API health..."
+          
+          # Try to reach the assembler API (if running locally, this would need to be adapted)
+          # For portfolio demonstration, we'll simulate the check
+          echo "✅ Journey Assembler API: Healthy"
+          echo "📊 System ready for data collection"
+
+  data-collection:
+    name: Collect Data from All Generators  
+    runs-on: ubuntu-latest
+    needs: check-system-status
+    if: needs.check-system-status.outputs.system_enabled == 'true'
+    
+    strategy:
+      matrix:
+        channel: [
+          { name: 'google_ads', api: 'GOOGLE_ADS_API', port: '8000' },
+          { name: 'facebook_ads', api: 'FACEBOOK_ADS_API', port: '8001' },
+          { name: 'email_marketing', api: 'EMAIL_MARKETING_API', port: '8002' },
+          { name: 'linkedin_ads', api: 'LINKEDIN_ADS_API', port: '8003' },
+          { name: 'events', api: 'EVENTS_API', port: '8004' },
+          { name: 'content_website_seo', api: 'WEBSITE_SEO_API', port: '8005' },
+          { name: 'app_store', api: 'APP_STORE_API', port: '8006' },
+          { name: 'organic_social', api: 'ORGANIC_SOCIAL_API', port: '8007' }
+        ]
+      fail-fast: false # Continue other channels even if one fails
+      
+    outputs:
+      collection_results: ${{ steps.collect-data.outputs.results }}
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Install Dependencies
+        run: |
+          pip install requests python-dateutil
+
+      - name: Calculate Collection Period
+        id: dates
+        run: |
+          python3 << 'EOF'
+          from datetime import datetime, timedelta
+          import os
+          
+          # Calculate date range
+          days_back = int("${{ inputs.days_to_collect || '3' }}")
+          end_date = datetime.now()
+          start_date = end_date - timedelta(days=days_back)
+          
+          # Format for API calls
+          start_str = start_date.strftime('%Y-%m-%d')
+          end_str = end_date.strftime('%Y-%m-%d')
+          
+          print(f"📅 Collection Period: {start_str} to {end_str}")
+          
+          # Set GitHub outputs
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f"start_date={start_str}\n")
+              f.write(f"end_date={end_str}\n")
+              f.write(f"days_collected={days_back}\n")
+          EOF
+
+      - name: Collect Data from ${{ matrix.channel.name }}
+        id: collect-data
+        env:
+          CHANNEL_API_URL: ${{ env[matrix.channel.api] }}
+        run: |
+          python3 << 'EOF'
+          import requests
+          import json
+          import os
+          from datetime import datetime
+          
+          # API configuration
+          channel_name = "${{ matrix.channel.name }}"
+          api_url = os.getenv('CHANNEL_API_URL', f"http://localhost:${{ matrix.channel.port }}")
+          
+          # Collection parameters
+          start_date = "${{ steps.dates.outputs.start_date }}"
+          end_date = "${{ steps.dates.outputs.end_date }}"
+          max_records = 10000
+          
+          print(f"🔄 Collecting data from {channel_name.upper()} API...")
+          print(f"📍 API URL: {api_url}")
+          print(f"📅 Period: {start_date} to {end_date}")
+          
+          # Prepare API request
+          if channel_name == "content_website_seo":
+              endpoint = f"{api_url}/ga4/data"
+          else:
+              endpoint = f"{api_url}/data"
+          
+          payload = {
+              "start_date": start_date,
+              "end_date": end_date,
+              "max_records": max_records
+          }
+          
+          try:
+              # For portfolio demonstration - simulate API call
+              # In real implementation, this would make actual HTTP requests
+              print(f"POST {endpoint}")
+              print(f"Payload: {json.dumps(payload, indent=2)}")
+              
+              # Simulate successful collection
+              touchpoints_collected = 2500  # Simulated count
+              
+              print(f"✅ Successfully collected {touchpoints_collected} touchpoints from {channel_name}")
+              
+              # Create results for next step
+              results = {
+                  "channel": channel_name,
+                  "touchpoints_collected": touchpoints_collected,
+                  "status": "success",
+                  "api_url": endpoint,
+                  "collection_period": f"{start_date} to {end_date}"
+              }
+              
+              # Save results
+              with open(f"{channel_name}_results.json", "w") as f:
+                  json.dump(results, f, indent=2)
+              
+              # Set GitHub output
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                  f.write(f"results={json.dumps(results)}\n")
+                  f.write(f"touchpoints_collected={touchpoints_collected}\n")
+                  f.write(f"status=success\n")
+                  
+          except Exception as e:
+              print(f"❌ Error collecting data from {channel_name}: {str(e)}")
+              
+              error_results = {
+                  "channel": channel_name,
+                  "touchpoints_collected": 0,
+                  "status": "error", 
+                  "error": str(e)
+              }
+              
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                  f.write(f"results={json.dumps(error_results)}\n")
+                  f.write(f"touchpoints_collected=0\n")
+                  f.write(f"status=error\n")
+          EOF
+
+      - name: Upload Collection Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.channel.name }}-collection-results
+          path: ${{ matrix.channel.name }}_results.json
+          retention-days: 7
+
+  journey-assembly:
+    name: Assemble Customer Journeys
+    runs-on: ubuntu-latest
+    needs: [check-system-status, data-collection]
+    if: needs.check-system-status.outputs.system_enabled == 'true'
+    
+    outputs:
+      journeys_assembled: ${{ steps.assembly.outputs.journeys_count }}
+      assembly_status: ${{ steps.assembly.outputs.status }}
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download All Collection Results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-collection-results"
+          merge-multiple: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Install Dependencies
+        run: |
+          pip install requests python-dateutil
+
+      - name: Send Data to Journey Assembler
+        id: send-to-assembler
+        run: |
+          python3 << 'EOF'
+          import json
+          import glob
+          import requests
+          import os
+          
+          assembler_url = "${{ env.JOURNEY_ASSEMBLER_URL }}"
+          
+          print("📨 Sending collected data to Journey Assembler...")
+          
+          # Process each channel's results
+          total_touchpoints = 0
+          channels_processed = 0
+          
+          for results_file in glob.glob("*_results.json"):
+              try:
+                  with open(results_file, 'r') as f:
+                      results = json.load(f)
+                  
+                  channel_name = results['channel']
+                  touchpoints = results.get('touchpoints_collected', 0)
+                  
+                  if results['status'] == 'success' and touchpoints > 0:
+                      print(f"📤 Sending {touchpoints} touchpoints from {channel_name} to assembler...")
+                      
+                      # For portfolio demonstration - simulate API call to assembler
+                      endpoint = f"{assembler_url}/ingest/{channel_name}"
+                      print(f"POST {endpoint}")
+                      
+                      total_touchpoints += touchpoints
+                      channels_processed += 1
+                      
+                      print(f"✅ Successfully sent {channel_name} data to assembler")
+                  else:
+                      print(f"⚠️ Skipping {channel_name} - no data or error status")
+                      
+              except Exception as e:
+                  print(f"❌ Error processing {results_file}: {str(e)}")
+          
+          print(f"📊 Summary: {total_touchpoints} total touchpoints from {channels_processed} channels")
+          
+          # Set outputs
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f"total_touchpoints={total_touchpoints}\n")
+              f.write(f"channels_processed={channels_processed}\n")
+          EOF
+
+      - name: Trigger Journey Assembly
+        id: assembly
+        run: |
+          python3 << 'EOF'
+          import requests
+          import json
+          import os
+          
+          assembler_url = "${{ env.JOURNEY_ASSEMBLER_URL }}"
+          
+          print("🔄 Triggering journey assembly process...")
+          
+          # Trigger batch processing
+          endpoint = f"{assembler_url}/webhooks/n8n-trigger"
+          
+          try:
+              # For portfolio demonstration - simulate the assembly process
+              print(f"POST {endpoint}")
+              
+              # Simulate successful assembly
+              journeys_assembled = 1250  # Simulated count
+              
+              print(f"✅ Successfully assembled {journeys_assembled} customer journeys")
+              
+              # Create assembly results
+              assembly_results = {
+                  "journeys_assembled": journeys_assembled,
+                  "status": "success",
+                  "processing_time": "45 seconds",
+                  "confidence_distribution": {
+                      "high": int(journeys_assembled * 0.35),
+                      "medium": int(journeys_assembled * 0.45), 
+                      "low": int(journeys_assembled * 0.15),
+                      "unmatched": int(journeys_assembled * 0.05)
+                  }
+              }
+              
+              # Save assembly results
+              with open("journey_assembly_results.json", "w") as f:
+                  json.dump(assembly_results, f, indent=2)
+              
+              print("📊 Journey Assembly Results:")
+              print(json.dumps(assembly_results, indent=2))
+              
+              # Set GitHub outputs
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                  f.write(f"journeys_count={journeys_assembled}\n")
+                  f.write(f"status=success\n")
+                  f.write(f"results={json.dumps(assembly_results)}\n")
+                  
+          except Exception as e:
+              print(f"❌ Error during journey assembly: {str(e)}")
+              
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                  f.write(f"journeys_count=0\n")
+                  f.write(f"status=error\n")
+                  f.write(f"error={str(e)}\n")
+          EOF
+
+      - name: Upload Assembly Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: journey-assembly-results
+          path: journey_assembly_results.json
+          retention-days: 30
+
+  salesforce-sync:
+    name: Sync Journeys to Salesforce
+    runs-on: ubuntu-latest
+    needs: [check-system-status, journey-assembly]
+    if: needs.journey-assembly.outputs.assembly_status == 'success'
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download Journey Assembly Results
+        uses: actions/download-artifact@v4
+        with:
+          name: journey-assembly-results
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Install Salesforce Dependencies
+        run: |
+          pip install simple-salesforce requests python-dateutil
+
+      - name: Transform Data for Salesforce
+        id: transform
+        run: |
+          python3 << 'EOF'
+          import json
+          import os
+          from datetime import datetime
+          
+          print("🔄 Transforming journey data for Salesforce...")
+          
+          # Load assembly results
+          with open("journey_assembly_results.json", 'r') as f:
+              assembly_results = json.load(f)
+          
+          journeys_count = assembly_results['journeys_assembled']
+          
+          # For portfolio demonstration - create sample Salesforce records
+          salesforce_records = {
+              "Customer_Journey__c": [],
+              "Touchpoint__c": []
+          }
+          
+          # Generate sample journey records
+          for i in range(min(journeys_count, 100)):  # Limit for demo
+              journey_record = {
+                  "Name": f"Journey_{i+1:04d}",
+                  "Customer_ID__c": f"customer_{i+1:06d}",
+                  "Journey_Start_Date__c": datetime.now().strftime('%Y-%m-%d'),
+                  "Journey_End_Date__c": datetime.now().strftime('%Y-%m-%d'),
+                  "Total_Touchpoints__c": 4,
+                  "Converted__c": i % 6 == 0,  # ~17% conversion rate
+                  "Conversion_Value__c": 125.50 if i % 6 == 0 else 0,
+                  "Customer_Type__c": "B2B" if i % 3 == 0 else "B2C",
+                  "Confidence_Score__c": 0.85,
+                  "Channel_Sequence__c": "google_ads, email_marketing, content_website_seo",
+                  "External_Journey_ID__c": f"journey_{i+1:08d}"
+              }
+              salesforce_records["Customer_Journey__c"].append(journey_record)
+          
+          print(f"📝 Prepared {len(salesforce_records['Customer_Journey__c'])} journey records for Salesforce")
+          
+          # Save transformed data
+          with open("salesforce_data.json", "w") as f:
+              json.dump(salesforce_records, f, indent=2)
+          
+          # Set output
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f"records_prepared={len(salesforce_records['Customer_Journey__c'])}\n")
+          EOF
+
+      - name: Sync to Salesforce
+        id: salesforce-sync
+        env:
+          SALESFORCE_USERNAME: ${{ secrets.SALESFORCE_USERNAME }}
+          SALESFORCE_PASSWORD: ${{ secrets.SALESFORCE_PASSWORD }}
+          SALESFORCE_SECURITY_TOKEN: ${{ secrets.SALESFORCE_SECURITY_TOKEN }}
+          SALESFORCE_DOMAIN: ${{ vars.SALESFORCE_DOMAIN || 'test' }}
+        run: |
+          python3 << 'EOF'
+          import json
+          import os
+          
+          print("📤 Syncing data to Salesforce...")
+          
+          # Load prepared Salesforce data
+          with open("salesforce_data.json", 'r') as f:
+              salesforce_data = json.load(f)
+          
+          records_count = len(salesforce_data["Customer_Journey__c"])
+          
+          # For portfolio demonstration - simulate Salesforce sync
+          print(f"🔗 Connecting to Salesforce ({os.getenv('SALESFORCE_DOMAIN', 'test')}.salesforce.com)")
+          print(f"📊 Syncing {records_count} journey records...")
+          
+          # Simulate successful sync
+          sync_results = {
+              "journeys_synced": records_count,
+              "touchpoints_synced": records_count * 4,
+              "sync_status": "success",
+              "sync_duration": "12 seconds",
+              "salesforce_org": os.getenv('SALESFORCE_DOMAIN', 'test')
+          }
+          
+          print("✅ Salesforce Sync Results:")
+          print(json.dumps(sync_results, indent=2))
+          
+          # Save sync results
+          with open("salesforce_sync_results.json", "w") as f:
+              json.dump(sync_results, f, indent=2)
+          
+          # Set GitHub outputs
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f"journeys_synced={sync_results['journeys_synced']}\n")
+              f.write(f"touchpoints_synced={sync_results['touchpoints_synced']}\n")
+              f.write(f"status=success\n")
+          EOF
+
+      - name: Upload Sync Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: salesforce-sync-results
+          path: salesforce_sync_results.json
+          retention-days: 30
+
+  workflow-summary:
+    name: Workflow Summary
+    runs-on: ubuntu-latest
+    needs: [check-system-status, data-collection, journey-assembly, salesforce-sync]
+    if: always()  # Run even if some jobs fail
+    
+    steps:
+      - name: Generate Workflow Summary
+        run: |
+          echo "# 🚀 Journey Assembly Workflow Summary" >> $GITHUB_STEP_SUMMARY
+          echo "**Execution Time:** $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 📊 Workflow Results" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | Status | Details |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|---------|" >> $GITHUB_STEP_SUMMARY
+          echo "| System Check | ${{ needs.check-system-status.result }} | System Enabled: ${{ needs.check-system-status.outputs.system_enabled }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Data Collection | ${{ needs.data-collection.result }} | 8 Channels Processed |" >> $GITHUB_STEP_SUMMARY
+          echo "| Journey Assembly | ${{ needs.journey-assembly.result }} | Journeys: ${{ needs.journey-assembly.outputs.journeys_assembled }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Salesforce Sync | ${{ needs.salesforce-sync.result }} | Records Synced |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 🔄 Next Scheduled Run" >> $GITHUB_STEP_SUMMARY
+          echo "**Every 3 days at 3:00 AM Amsterdam time**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 🛠️ System Control" >> $GITHUB_STEP_SUMMARY
+          echo "- Use 'Manual System Control' workflow to enable/disable processing" >> $GITHUB_STEP_SUMMARY
+          echo "- Set repository variables: JOURNEY_ASSEMBLY_ENABLED, IMMEDIATE_STOP" >> $GITHUB_STEP_SUMMARY
+          echo "- Emergency stop available via workflow dispatch" >> $GITHUB_STEP_SUMMARY
