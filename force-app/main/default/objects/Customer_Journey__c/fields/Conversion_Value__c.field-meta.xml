@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Conversion_Value__c</fullName>
+    <description>Total monetary value of conversions in this journey (EUR)</description>
+    <inlineHelpText>Sum of all conversion values from touchpoints in this journey, expressed in Euros.</inlineHelpText>
+    <label>Conversion Value</label>
+    <precision>16</precision>
+    <required>false</required>
+    <scale>2</scale>
+    <trackHistory>true</trackHistory>
+    <type>Currency</type>
+</CustomField>

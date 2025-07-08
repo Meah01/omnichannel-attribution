@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Scenario_Type__c</fullName>
+    <label>Scenario Type</label>
+    <required>true</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Baseline</fullName>
+                <default>false</default>
+                <label>Baseline</label>
+            </value>
+            <value>
+                <fullName>Economic_Downturn</fullName>
+                <default>false</default>
+                <label>Economic Downturn</label>
+            </value>
+            <value>
+                <fullName>Peak_Season</fullName>
+                <default>false</default>
+                <label>Peak Season</label>
+            </value>
+            <value>
+                <fullName>Summer_Low</fullName>
+                <default>false</default>
+                <label>Summer Low</label>
+            </value>
+            <value>
+                <fullName>Increased_Competition</fullName>
+                <default>false</default>
+                <label>Increased Competition</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

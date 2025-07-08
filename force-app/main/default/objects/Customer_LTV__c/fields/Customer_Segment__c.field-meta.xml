@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Customer_Segment__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <label>Customer Segment</label>
+    <referenceTo>Customer_Segment__c</referenceTo>
+    <relationshipLabel>Customer LTVs</relationshipLabel>
+    <relationshipName>Customer_LTVs</relationshipName>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

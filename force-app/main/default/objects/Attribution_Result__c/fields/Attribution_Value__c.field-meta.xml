@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Attribution_Value__c</fullName>
+    <description>Monetary value attributed to this channel (EUR)</description>
+    <inlineHelpText>The conversion value attributed to this channel based on the attribution weight and total journey value.</inlineHelpText>
+    <label>Attribution Value</label>
+    <precision>16</precision>
+    <required>false</required>
+    <scale>2</scale>
+    <trackHistory>false</trackHistory>
+    <type>Currency</type>
+</CustomField>

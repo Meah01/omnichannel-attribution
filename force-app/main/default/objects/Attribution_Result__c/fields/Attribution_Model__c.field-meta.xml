@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Attribution_Model__c</fullName>
+    <description>Attribution model used to calculate this result</description>
+    <inlineHelpText>The specific attribution model algorithm used to generate this attribution weight.</inlineHelpText>
+    <label>Attribution Model</label>
+    <required>true</required>
+    <trackHistory>false</trackHistory>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>LastTouch</fullName>
+                <default>false</default>
+                <label>Last Touch</label>
+            </value>
+            <value>
+                <fullName>FirstTouch</fullName>
+                <default>false</default>
+                <label>First Touch</label>
+            </value>
+            <value>
+                <fullName>Linear</fullName>
+                <default>true</default>
+                <label>Linear</label>
+            </value>
+            <value>
+                <fullName>TimeDecay</fullName>
+                <default>false</default>
+                <label>Time Decay</label>
+            </value>
+            <value>
+                <fullName>PositionBased</fullName>
+                <default>false</default>
+                <label>Position Based</label>
+            </value>
+            <value>
+                <fullName>MarkovChain</fullName>
+                <default>false</default>
+                <label>Markov Chain</label>
+            </value>
+            <value>
+                <fullName>ShapleyValue</fullName>
+                <default>false</default>
+                <label>Shapley Value</label>
+            </value>
+            <value>
+                <fullName>Ensemble</fullName>
+                <default>false</default>
+                <label>Ensemble</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

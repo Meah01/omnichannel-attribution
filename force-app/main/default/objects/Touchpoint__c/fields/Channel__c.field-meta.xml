@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Channel__c</fullName>
+    <description>Marketing channel that generated this touchpoint</description>
+    <inlineHelpText>The marketing channel or platform where this customer interaction occurred.</inlineHelpText>
+    <label>Channel</label>
+    <required>true</required>
+    <trackHistory>false</trackHistory>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Google_Ads</fullName>
+                <default>false</default>
+                <label>Google Ads</label>
+            </value>
+            <value>
+                <fullName>Facebook_Ads</fullName>
+                <default>false</default>
+                <label>Facebook Ads</label>
+            </value>
+            <value>
+                <fullName>Email_Marketing</fullName>
+                <default>false</default>
+                <label>Email Marketing</label>
+            </value>
+            <value>
+                <fullName>LinkedIn_Ads</fullName>
+                <default>false</default>
+                <label>LinkedIn Ads</label>
+            </value>
+            <value>
+                <fullName>Events</fullName>
+                <default>false</default>
+                <label>Events</label>
+            </value>
+            <value>
+                <fullName>Content_Website_SEO</fullName>
+                <default>false</default>
+                <label>Content/Website/SEO</label>
+            </value>
+            <value>
+                <fullName>App_Store</fullName>
+                <default>false</default>
+                <label>App Store</label>
+            </value>
+            <value>
+                <fullName>Organic_Social</fullName>
+                <default>false</default>
+                <label>Organic Social</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

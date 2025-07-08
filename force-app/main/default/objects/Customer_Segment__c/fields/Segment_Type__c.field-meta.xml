@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Segment_Type__c</fullName>
+    <label>Segment Type</label>
+    <required>true</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>RFM</fullName>
+                <default>false</default>
+                <label>RFM</label>
+            </value>
+            <value>
+                <fullName>Behavioral</fullName>
+                <default>false</default>
+                <label>Behavioral</label>
+            </value>
+            <value>
+                <fullName>Journey_Pattern</fullName>
+                <default>false</default>
+                <label>Journey Pattern</label>
+            </value>
+            <value>
+                <fullName>CLV_Based</fullName>
+                <default>false</default>
+                <label>CLV Based</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

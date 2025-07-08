@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Campaign_ID_External__c</fullName>
+    <caseSensitive>false</caseSensitive>
+    <description>External campaign identifier from source platforms</description>
+    <externalId>true</externalId>
+    <inlineHelpText>Unique campaign identifier from the originating platform (Google Ads, Facebook, etc.)</inlineHelpText>
+    <label>Campaign ID External</label>
+    <length>100</length>
+    <required>true</required>
+    <trackHistory>false</trackHistory>
+    <type>Text</type>
+    <unique>true</unique>
+</CustomField>

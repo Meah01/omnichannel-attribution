@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Customer_Journey__c</fullName>
+    <description>Master-detail relationship to the customer journey this touchpoint belongs to</description>
+    <inlineHelpText>The customer journey that contains this touchpoint. Required for all touchpoints.</inlineHelpText>
+    <label>Customer Journey</label>
+    <referenceTo>Customer_Journey__c</referenceTo>
+    <relationshipLabel>Touchpoints</relationshipLabel>
+    <relationshipName>Touchpoints</relationshipName>
+    <relationshipOrder>0</relationshipOrder>
+    <reparentableMasterDetail>false</reparentableMasterDetail>
+    <trackHistory>false</trackHistory>
+    <type>MasterDetail</type>
+    <writeRequiresMasterRead>false</writeRequiresMasterRead>
+</CustomField>

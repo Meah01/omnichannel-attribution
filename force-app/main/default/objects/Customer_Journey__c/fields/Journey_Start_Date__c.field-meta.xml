@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Journey_Start_Date__c</fullName>
+    <description>Timestamp of the first touchpoint in the customer journey</description>
+    <inlineHelpText>Date and time when the customer journey began with the first recorded touchpoint.</inlineHelpText>
+    <label>Journey Start Date</label>
+    <required>true</required>
+    <trackHistory>true</trackHistory>
+    <type>DateTime</type>
+</CustomField>

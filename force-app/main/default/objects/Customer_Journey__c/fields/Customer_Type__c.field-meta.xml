@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Customer_Type__c</fullName>
+    <description>Classification of customer as B2B or B2C based on journey characteristics and touchpoint evidence</description>
+    <inlineHelpText>Automatically determined by Journey Assembler based on channels used, timing patterns, and behavioral signals.</inlineHelpText>
+    <label>Customer Type</label>
+    <required>true</required>
+    <trackHistory>true</trackHistory>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>B2C</fullName>
+                <default>true</default>
+                <label>B2C</label>
+            </value>
+            <value>
+                <fullName>B2B</fullName>
+                <default>false</default>
+                <label>B2B</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

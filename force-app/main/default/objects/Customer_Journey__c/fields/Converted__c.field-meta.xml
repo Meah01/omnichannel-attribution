@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Converted__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Indicates whether this customer journey resulted in a conversion</description>
+    <inlineHelpText>True if any touchpoint in this journey had a conversion value greater than zero.</inlineHelpText>
+    <label>Converted</label>
+    <trackHistory>true</trackHistory>
+    <type>Checkbox</type>
+</CustomField>
