@@ -1,6 +1,6 @@
 # (IN DEVELOPMENT) Omnichannel Attribution integration with Salesforce (Bunq Case Study) 
 
-Currently working on the project. Published publicly tho to use the GitHub Workflows to automate the pipeline.
+Currently working on the project. Published publicly tho to use the GitHub Workflows to automate the pipeline.<br>
 Uses Bunq as a case study and example. The company is not associated with this project in any way or form. 
 
 ## Aimed features
@@ -18,12 +18,12 @@ Uses Bunq as a case study and example. The company is not associated with this p
 - LLM integration (probably Mistral 7B) for data interpretability and recommandations for optimization
 
 ## Stages & Current progress
-🗹 Phase 0 - Logic building, modelling and assumptions (currently transfering it from docs to my website, check it out: 
-🗹 Phase 1 - Synthethic data generators and CJ builder
-☐ Phase 2 - Basic attribution models + advanced attribution models + their dashboards + data import via SF REST API
-            (currently working on the data import to test the basic dashboards + Markov)
-☐ Phase 3 - CLV + Monte Carlo
-☐ Phase 4 - LLM integration
+🗹 Phase 0 - Logic building, modelling and assumptions (currently transfering it from docs to my website, check it out: https://tasteful-motion-cd2.notion.site/Omnichannel-Attribution-Budget-Optimization-Platform-IN-DEVELOPMENT-21f06ad0ff588043bbcafd5b69144d9d)<br> 
+🗹 Phase 1 - Synthethic data generators and CJ builder<br>
+☐ Phase 2 - Basic attribution models + advanced attribution models + their dashboards + data import via SF REST API<br>
+            (currently working on the data import to test the basic dashboards + Markov)<br>
+☐ Phase 3 - CLV + Monte Carlo<br>
+☐ Phase 4 - LLM integration<br>
 
 ## Disclaimer
 While the project involves a high degree of complexity, and it does take a great deal of time, the following needs to be clarified:
