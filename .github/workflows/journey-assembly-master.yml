@@ -508,8 +508,9 @@ jobs:
           import requests
           import json
           import os
+          import xml.etree.ElementTree as ET
           
-          print("Authenticating with Salesforce using OAuth2...")
+          print("Authenticating with Salesforce using SOAP Login...")
           
           # Get the login credentials from the secret
           login_data = os.getenv('SALESFORCE_LOGIN', '').strip()
@@ -526,8 +527,6 @@ jobs:
                   username = login_json.get('username')
                   password = login_json.get('password')
                   security_token = login_json.get('security_token', '')
-                  client_id = login_json.get('client_id')
-                  client_secret = login_json.get('client_secret')
               else:
                   print("SALESFORCE_LOGIN must be in JSON format")
                   exit(1)
@@ -535,105 +534,132 @@ jobs:
               print(f"Error parsing SALESFORCE_LOGIN: {str(e)}")
               exit(1)
           
-          if not all([username, password, client_id, client_secret]):
-              print("Missing required credentials: username, password, client_id, client_secret")
+          if not all([username, password]):
+              print("Missing required credentials: username, password")
               exit(1)
           
           print(f"Parsed credentials for user: {username}")
-          print(f"Client ID present: {'Yes' if client_id else 'No'}")
           print(f"Security token present: {'Yes' if security_token else 'No'}")
           
-          # Enhanced domain detection for Trailhead playgrounds
-          def get_auth_url(domain):
-              # Standard login
+          # Determine SOAP login URL
+          def get_soap_url(domain):
               if not domain or domain == "login":
-                  return "https://login.salesforce.com/services/oauth2/token"
-              
-              # Test/sandbox
-              if domain == "test":
-                  return "https://test.salesforce.com/services/oauth2/token"
-              
-              # Trailhead playground patterns - check for common patterns
-              if any(pattern in domain for pattern in ['-dev-ed', 'trailblaze', 'lightning']):
-                  return f"https://{domain}.trailblaze.lightning.force.com/services/oauth2/token"
-              
-              # Enhanced check for Trailhead pattern: contains hyphens and ends with specific patterns
-              if '-' in domain and any(domain.endswith(suffix) for suffix in ['ed', 'org']):
-                  return f"https://{domain}.trailblaze.lightning.force.com/services/oauth2/token"
-              
-              # Custom domain (My Domain)
-              return f"https://{domain}.my.salesforce.com/services/oauth2/token"
+                  return "https://login.salesforce.com/services/Soap/u/60.0"
+              elif domain == "test":
+                  return "https://test.salesforce.com/services/Soap/u/60.0"
+              elif any(pattern in domain for pattern in ['-dev-ed', 'trailblaze', 'lightning']):
+                  return f"https://{domain}.trailblaze.lightning.force.com/services/Soap/u/60.0"
+              else:
+                  return f"https://{domain}.my.salesforce.com/services/Soap/u/60.0"
           
-          # Get authentication URL
-          auth_url = get_auth_url(domain)
-          print(f"Authentication URL: {auth_url}")
+          # SOAP login XML template
+          soap_body = f'''<?xml version="1.0" encoding="utf-8"?>
+          <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:urn="urn:enterprise.soap.sforce.com">
+              <soapenv:Header/>
+              <soapenv:Body>
+                  <urn:login>
+                      <urn:username>{username}</urn:username>
+                      <urn:password>{password}{security_token}</urn:password>
+                  </urn:login>
+              </soapenv:Body>
+          </soapenv:Envelope>'''
           
-          # OAuth2 authentication data
-          auth_data = {
-              'grant_type': 'password',
-              'client_id': client_id,
-              'client_secret': client_secret,
-              'username': username,
-              'password': password + security_token
-          }
-          
-          # Try multiple authentication approaches
-          auth_attempts = [
-              auth_url,  # Primary URL based on domain
-              f"https://{domain}.trailblaze.lightning.force.com/services/oauth2/token",  # Force Trailhead
-              "https://login.salesforce.com/services/oauth2/token",  # Standard fallback
-              "https://test.salesforce.com/services/oauth2/token"  # Test fallback
+          # Try SOAP login with multiple URLs
+          soap_urls = [
+              get_soap_url(domain),
+              f"https://{domain}.trailblaze.lightning.force.com/services/Soap/u/60.0",
+              "https://login.salesforce.com/services/Soap/u/60.0",
+              "https://test.salesforce.com/services/Soap/u/60.0"
           ]
           
           # Remove duplicates while preserving order
-          auth_attempts = list(dict.fromkeys(auth_attempts))
+          soap_urls = list(dict.fromkeys(soap_urls))
           
           auth_success = False
-          for attempt_url in auth_attempts:
+          for soap_url in soap_urls:
               try:
-                  print(f"Trying authentication URL: {attempt_url}")
-                  response = requests.post(attempt_url, data=auth_data, timeout=30)
+                  print(f"Trying SOAP login URL: {soap_url}")
+                  
+                  headers = {
+                      'Content-Type': 'text/xml; charset=UTF-8',
+                      'SOAPAction': 'login'
+                  }
+                  
+                  response = requests.post(soap_url, data=soap_body, headers=headers, timeout=30)
                   
                   if response.status_code == 200:
-                      auth_result = response.json()
-                      access_token = auth_result['access_token']
-                      instance_url = auth_result['instance_url']
+                      # Parse SOAP response
+                      root = ET.fromstring(response.text)
                       
-                      print(f"Successfully authenticated with Salesforce")
-                      print(f"Instance URL: {instance_url}")
-                      print(f"Working auth URL: {attempt_url}")
+                      # Extract session ID and server URL
+                      session_id = None
+                      server_url = None
                       
-                      # Save auth info for next step
-                      auth_info = {
-                          "access_token": access_token,
-                          "instance_url": instance_url,
-                          "auth_url": attempt_url
-                      }
+                      for elem in root.iter():
+                          if elem.tag.endswith('sessionId'):
+                              session_id = elem.text
+                          elif elem.tag.endswith('serverUrl'):
+                              server_url = elem.text
                       
-                      with open("sf_auth.json", "w") as f:
-                          json.dump(auth_info, f)
-                      
-                      # Set outputs
-                      with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                          f.write(f"auth_success=true\n")
-                          f.write(f"instance_url={instance_url}\n")
-                      
-                      auth_success = True
-                      break
-                      
+                      if session_id and server_url:
+                          # Extract instance URL from server URL
+                          if '/services/' in server_url:
+                              instance_url = server_url.split('/services/')[0]
+                          else:
+                              instance_url = server_url.rstrip('/')
+                          
+                          print(f"Successfully authenticated with Salesforce")
+                          print(f"Instance URL: {instance_url}")
+                          print(f"Working SOAP URL: {soap_url}")
+                          
+                          # Save auth info for next step
+                          auth_info = {
+                              "session_id": session_id,
+                              "instance_url": instance_url,
+                              "server_url": server_url,
+                              "auth_method": "SOAP"
+                          }
+                          
+                          with open("sf_auth.json", "w") as f:
+                              json.dump(auth_info, f)
+                          
+                          # Set outputs
+                          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                              f.write(f"auth_success=true\n")
+                              f.write(f"instance_url={instance_url}\n")
+                          
+                          auth_success = True
+                          break
+                      else:
+                          print(f"Could not extract session info from SOAP response")
+                          
                   else:
-                      print(f"Auth failed with {attempt_url}: {response.status_code}")
-                      print(f"Error: {response.text[:200]}")
+                      print(f"SOAP login failed with {soap_url}: {response.status_code}")
+                      if 'fault' in response.text.lower():
+                          # Extract SOAP fault message
+                          try:
+                              fault_root = ET.fromstring(response.text)
+                              for elem in fault_root.iter():
+                                  if elem.tag.endswith('faultstring'):
+                                      print(f"SOAP Fault: {elem.text}")
+                                      break
+                          except:
+                              print(f"SOAP Error: {response.text[:200]}")
                       
               except Exception as e:
-                  print(f"Error with {attempt_url}: {str(e)[:100]}")
+                  print(f"Error with {soap_url}: {str(e)[:100]}")
                   continue
           
           if not auth_success:
-              print("All authentication attempts failed")
+              print("All SOAP authentication attempts failed")
               print("URLs attempted:")
-              for url in auth_attempts:
+              for url in soap_urls:
                   print(f"  - {url}")
+              
+              print("\nTroubleshooting:")
+              print("1. Verify your Trailhead playground username and password")
+              print("2. Reset your security token in Setup -> Reset Security Token")
+              print("3. Make sure your playground is active and not expired")
               
               with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
                   f.write(f"auth_success=false\n")
@@ -655,7 +681,7 @@ jobs:
           with open("sf_auth.json", "r") as f:
               auth_info = json.load(f)
           
-          access_token = auth_info["access_token"]
+          session_id = auth_info["session_id"]
           instance_url = auth_info["instance_url"]
           
           # Load journey data
@@ -665,8 +691,9 @@ jobs:
           # Prepare API call
           import_url = f"{instance_url}/services/apexrest/attribution/import/journeys"
           
+          # Use session ID for authorization (SOAP login)
           headers = {
-              'Authorization': f'Bearer {access_token}',
+              'Authorization': f'Bearer {session_id}',
               'Content-Type': 'application/json',
               'Accept': 'application/json'
           }
@@ -716,6 +743,11 @@ jobs:
                       
               else:
                   print(f"HTTP Error {response.status_code}: {response.text}")
+                  
+                  # Check if it's an authentication error
+                  if response.status_code in [401, 403]:
+                      print("Authentication may have expired. Session-based auth has shorter timeout.")
+                  
                   with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
                       f.write(f"import_success=false\n")
                   exit(1)
@@ -726,7 +758,7 @@ jobs:
                   f.write(f"import_success=false\n")
               exit(1)
           EOF
-
+          
       - name: Verify Import Success
         if: steps.import-data.outputs.import_success == 'true'
         run: |
@@ -741,14 +773,14 @@ jobs:
           with open("sf_auth.json", "r") as f:
               auth_info = json.load(f)
           
-          access_token = auth_info["access_token"]
+          session_id = auth_info["session_id"]
           instance_url = auth_info["instance_url"]
           
           # Check import status
           status_url = f"{instance_url}/services/apexrest/attribution/import/status"
           
           headers = {
-              'Authorization': f'Bearer {access_token}',
+              'Authorization': f'Bearer {session_id}',
               'Content-Type': 'application/json'
           }
           
@@ -768,6 +800,7 @@ jobs:
                   
               else:
                   print(f"Could not verify status: HTTP {response.status_code}")
+                  print(f"Response: {response.text[:200]}")
                   
           except Exception as e:
               print(f"Verification error: {str(e)}")
