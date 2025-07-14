@@ -492,7 +492,7 @@ jobs:
           with open("salesforce_import_data.json", "w") as f:
               json.dump(salesforce_data, f, indent=2)
           
-          print(f"Created {len(customer_journeys)} journeys with {len(touchpoints)} touchpoints")
+          print(f"✅ Created {len(customer_journeys)} journeys with {len(touchpoints)} touchpoints")
           
           # Set outputs
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
@@ -503,9 +503,7 @@ jobs:
       - name: Authenticate with Salesforce
         id: sf-auth
         env:
-          SALESFORCE_USERNAME: ${{ secrets.SALESFORCE_USERNAME }}
-          SALESFORCE_PASSWORD: ${{ secrets.SALESFORCE_PASSWORD }}
-          SALESFORCE_SECURITY_TOKEN: ${{ secrets.SALESFORCE_SECURITY_TOKEN }}
+          SALESFORCE_LOGIN: ${{ secrets.SALESFORCE_LOGIN }}
           SALESFORCE_DOMAIN: ${{ vars.SALESFORCE_DOMAIN }}
         run: |
           python3 << 'EOF'
@@ -513,29 +511,71 @@ jobs:
           import json
           import os
           
-          print("Authenticating with Salesforce...")
+          print("🔐 Authenticating with Salesforce using SALESFORCE_LOGIN...")
           
-          # Salesforce authentication
-          username = os.getenv('SALESFORCE_USERNAME')
-          password = os.getenv('SALESFORCE_PASSWORD')
-          security_token = os.getenv('SALESFORCE_SECURITY_TOKEN')
+          # Get the login credentials from the single secret
+          login_data = os.getenv('SALESFORCE_LOGIN', '').strip()
           domain = os.getenv('SALESFORCE_DOMAIN', 'login')
           
-          if not all([username, password, security_token]):
-              print("Missing Salesforce credentials in GitHub secrets")
+          if not login_data:
+              print("❌ Missing SALESFORCE_LOGIN secret")
               exit(1)
+          
+          # Parse SALESFORCE_LOGIN - try different formats
+          username = None
+          password = None
+          security_token = None
+          
+          try:
+              # Try JSON format first
+              if login_data.startswith('{'):
+                  login_json = json.loads(login_data)
+                  username = login_json.get('username')
+                  password = login_json.get('password')
+                  security_token = login_json.get('security_token') or login_json.get('token')
+              
+              # Try colon-separated format: username:password:token
+              elif ':' in login_data:
+                  parts = login_data.split(':')
+                  if len(parts) >= 2:
+                      username = parts[0]
+                      password = parts[1]
+                      security_token = parts[2] if len(parts) > 2 else ''
+              
+              # Try single value (just username, prompt user for format)
+              else:
+                  print("⚠ SALESFORCE_LOGIN format not recognized")
+                  print(f"Current value appears to be: {login_data[:20]}...")
+                  print("Expected formats:")
+                  print("1. JSON: {\"username\":\"user@email.com\",\"password\":\"pass\",\"security_token\":\"token\"}")
+                  print("2. Colon-separated: username:password:security_token")
+                  print("3. Colon-separated: username:password (if no security token needed)")
+                  exit(1)
+          
+          except Exception as e:
+              print(f" Error parsing SALESFORCE_LOGIN: {str(e)}")
+              print("Please check the format of your SALESFORCE_LOGIN secret")
+              exit(1)
+          
+          if not username or not password:
+              print(" Could not extract username and password from SALESFORCE_LOGIN")
+              print("Please check the format of your secret")
+              exit(1)
+          
+          print(f" Parsed credentials for user: {username}")
+          print(f" Security token present: {'Yes' if security_token else 'No'}")
           
           # Authentication URL - try login.salesforce.com first, then test.salesforce.com for some Trailhead orgs
           auth_url = "https://login.salesforce.com/services/oauth2/token"
           
-          print(f"🔗 Attempting authentication for domain: {domain}")
+          print(f" Attempting authentication for domain: {domain}")
           
           auth_data = {
               'grant_type': 'password',
               'client_id': '3MVG9A2kN3Bn17hs',  # Default connected app
               'client_secret': '1234567890',
               'username': username,
-              'password': password + security_token
+              'password': password + (security_token or '')  # Append security token if present
           }
           
           try:
@@ -543,7 +583,7 @@ jobs:
               
               # If login.salesforce.com fails, try test.salesforce.com (for some Trailhead orgs)
               if response.status_code != 200 and "trailhead" in domain.lower():
-                  print("⚠Login failed with login.salesforce.com, trying test.salesforce.com...")
+                  print(" Login failed with login.salesforce.com, trying test.salesforce.com...")
                   auth_url = "https://test.salesforce.com/services/oauth2/token"
                   response = requests.post(auth_url, data=auth_data, timeout=30)
               
@@ -552,8 +592,8 @@ jobs:
                   access_token = auth_result['access_token']
                   instance_url = auth_result['instance_url']
                   
-                  print(f"Successfully authenticated with Salesforce")
-                  print(f"Instance URL: {instance_url}")
+                  print(f" Successfully authenticated with Salesforce")
+                  print(f" Instance URL: {instance_url}")
                   
                   # Save auth info for next step
                   auth_info = {
@@ -570,15 +610,20 @@ jobs:
                       f.write(f"instance_url={instance_url}\n")
                       
               else:
-                  print(f"Salesforce authentication failed: {response.status_code}")
+                  print(f" Salesforce authentication failed: {response.status_code}")
                   print(f"Response: {response.text}")
+                  print("")
+                  print(" Troubleshooting tips:")
+                  print("1. Check your username and password are correct")
+                  print("2. You might need a security token - get it from Salesforce Setup → Reset Security Token")
+                  print("3. If using security token, format should be: username:password:security_token")
                   
                   with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
                       f.write(f"auth_success=false\n")
                   exit(1)
                   
           except Exception as e:
-              print(f"Authentication error: {str(e)}")
+              print(f" Authentication error: {str(e)}")
               with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
                   f.write(f"auth_success=false\n")
               exit(1)
@@ -616,8 +661,8 @@ jobs:
           }
           
           try:
-              print(f"Sending {len(journey_data['customer_journeys'])} journeys to Salesforce...")
-              print(f"API Endpoint: {import_url}")
+              print(f" Sending {len(journey_data['customer_journeys'])} journeys to Salesforce...")
+              print(f" API Endpoint: {import_url}")
               
               response = requests.post(
                   import_url,
@@ -630,13 +675,13 @@ jobs:
                   result = response.json()
                   
                   if result.get('success', False):
-                      print(f"Successfully imported to Salesforce!")
-                      print(f"Processed: {result.get('totalProcessed', 0)}")
-                      print(f"Success: {result.get('successCount', 0)}")
-                      print(f"Errors: {result.get('errorCount', 0)}")
+                      print(f" Successfully imported to Salesforce!")
+                      print(f" Processed: {result.get('totalProcessed', 0)}")
+                      print(f" Success: {result.get('successCount', 0)}")
+                      print(f" Errors: {result.get('errorCount', 0)}")
                       
                       if result.get('errors'):
-                          print("Import errors:")
+                          print(" Import errors:")
                           for error in result['errors'][:3]:  # Show first 3 errors
                               print(f"   - {error}")
                       
@@ -651,7 +696,7 @@ jobs:
                           f.write(f"errors_count={result.get('errorCount', 0)}\n")
                       
                   else:
-                      print(f"Salesforce import failed: {result.get('message', 'Unknown error')}")
+                      print(f" Salesforce import failed: {result.get('message', 'Unknown error')}")
                       print(f"Errors: {result.get('errors', [])}")
                       
                       with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
@@ -665,7 +710,7 @@ jobs:
                   exit(1)
                   
           except Exception as e:
-              print(f"Import error: {str(e)}")
+              print(f" Import error: {str(e)}")
               with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
                   f.write(f"import_success=false\n")
               exit(1)
@@ -679,7 +724,7 @@ jobs:
           import json
           import os
           
-          print("Verifying Salesforce import...")
+          print("🔍 Verifying Salesforce import...")
           
           # Load auth info
           with open("sf_auth.json", "r") as f:
@@ -702,7 +747,7 @@ jobs:
               if response.status_code == 200:
                   status = response.json()
                   
-                  print("Current Salesforce Status:")
+                  print(" Current Salesforce Status:")
                   print(f"   • Total Journeys: {status.get('total_journeys', 0)}")
                   print(f"   • Total Touchpoints: {status.get('total_touchpoints', 0)}")
                   print(f"   • B2C Journeys: {status.get('b2c_journeys', 0)}")
@@ -711,10 +756,10 @@ jobs:
                   print(f"   • Last Import: {status.get('last_import', 'Unknown')}")
                   
               else:
-                  print(f"Could not verify status: HTTP {response.status_code}")
+                  print(f" Could not verify status: HTTP {response.status_code}")
                   
           except Exception as e:
-              print(f"Verification error: {str(e)}")
+              print(f" Verification error: {str(e)}")
           EOF
 
       - name: Upload Import Results
@@ -732,12 +777,12 @@ jobs:
         if: always()
         run: |
           if [[ "${{ steps.import-data.outputs.import_success }}" == "true" ]]; then
-            echo "**Salesforce Import**: Successfully imported ${{ steps.import-data.outputs.journeys_imported }} journeys" >> $GITHUB_STEP_SUMMARY
-            echo "**Errors**: ${{ steps.import-data.outputs.errors_count }} import errors" >> $GITHUB_STEP_SUMMARY
-            echo "**Ready**: Attribution models can now process imported data" >> $GITHUB_STEP_SUMMARY
+            echo " **Salesforce Import**: Successfully imported ${{ steps.import-data.outputs.journeys_imported }} journeys" >> $GITHUB_STEP_SUMMARY
+            echo " **Errors**: ${{ steps.import-data.outputs.errors_count }} import errors" >> $GITHUB_STEP_SUMMARY
+            echo " **Ready**: Attribution models can now process imported data" >> $GITHUB_STEP_SUMMARY
           else
-            echo "**Salesforce Import**: Failed to import journey data" >> $GITHUB_STEP_SUMMARY
-            echo "**Action**: Check import logs for error details" >> $GITHUB_STEP_SUMMARY
+            echo " **Salesforce Import**: Failed to import journey data" >> $GITHUB_STEP_SUMMARY
+            echo " **Action**: Check import logs for error details" >> $GITHUB_STEP_SUMMARY
           fi
 
   workflow-summary:
