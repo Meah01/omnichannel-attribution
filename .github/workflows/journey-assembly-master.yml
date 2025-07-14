@@ -1,5 +1,4 @@
 # .github/workflows/journey-assembly-master.yml
-# Main orchestration workflow - runs every 3 days at 3 AM Amsterdam time
 name: Journey Assembly Master Orchestration
 
 on:
