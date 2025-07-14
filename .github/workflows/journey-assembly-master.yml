@@ -372,7 +372,7 @@ jobs:
           path: journey_assembly_results.json
           retention-days: 30
 
-  salesforce-sync:
+salesforce-sync:
     name: Sync Journeys to Salesforce
     runs-on: ubuntu-latest
     needs: [check-system-status, journey-assembly]
@@ -565,45 +565,45 @@ jobs:
           print(f" Parsed credentials for user: {username}")
           print(f" Security token present: {'Yes' if security_token else 'No'}")
           
-          # Authentication URL - try login.salesforce.com first, then test.salesforce.com for some Trailhead orgs
-          auth_url = "https://login.salesforce.com/services/oauth2/token"
+          # Authentication URL - handle different Trailhead org types
+          if "trailblaze" in domain or "lightning" in domain:
+              # For Lightning Trailhead orgs with trailblaze domains
+              auth_url = f"https://{domain}.trailblaze.lightning.force.com/services/oauth2/token"
+              print(f" Using Lightning Trailhead auth URL: {auth_url}")
+          else:
+              # Standard authentication URLs
+              auth_url = "https://login.salesforce.com/services/oauth2/token"
+              print(f" Attempting authentication for domain: {domain}")
           
-          print(f" Attempting authentication for domain: {domain}")
-          
+          # Try authentication without client credentials first (works for many Trailhead orgs)
           auth_data = {
               'grant_type': 'password',
               'username': username,
-              'password': password + (security_token or '')  # Append security token if present
+              'password': password + (security_token or '')
           }
           
           try:
-              # First try without client_id/client_secret (works for many Trailhead orgs)
+              print("🔐 Attempting authentication without client credentials...")
               response = requests.post(auth_url, data=auth_data, timeout=30)
               
-              # If that fails, try with common client credentials
+              # If Lightning URL fails, try the My Domain approach
+              if response.status_code != 200 and "trailblaze" in domain:
+                  print(" Lightning auth failed, trying My Domain URL...")
+                  mydomain_url = f"https://{domain.split('.')[0]}.my.salesforce.com/services/oauth2/token"
+                  print(f" My Domain URL: {mydomain_url}")
+                  response = requests.post(mydomain_url, data=auth_data, timeout=30)
+              
+              # If still failing, try standard URLs
               if response.status_code != 200:
-                  print(" First attempt failed, trying with client credentials...")
-                  auth_data.update({
-                      'client_id': '3MVG9A2kN3Bn17hs8.boYCP6AzVQ5nrP4OUKP1eCn_7qQxo2QaZV8dFnPdNuSXBamvDipxkq0Qth3KtV8mQPT.HA',
-                      'client_secret': '1209600710141114676'
-                  })
+                  print(" Custom URLs failed, trying standard login.salesforce.com...")
+                  auth_url = "https://login.salesforce.com/services/oauth2/token"
                   response = requests.post(auth_url, data=auth_data, timeout=30)
               
-              # If login.salesforce.com fails, try test.salesforce.com (for some Trailhead orgs)
-              if response.status_code != 200 and "trailhead" in domain.lower():
-                  print(" Login failed with login.salesforce.com, trying test.salesforce.com...")
+              # If login.salesforce.com fails, try test.salesforce.com
+              if response.status_code != 200:
+                  print(" Login.salesforce.com failed, trying test.salesforce.com...")
                   auth_url = "https://test.salesforce.com/services/oauth2/token"
-                  
-                  # Try both with and without client credentials on test server
-                  auth_data_simple = {
-                      'grant_type': 'password',
-                      'username': username,
-                      'password': password + (security_token or '')
-                  }
-                  response = requests.post(auth_url, data=auth_data_simple, timeout=30)
-                  
-                  if response.status_code != 200:
-                      response = requests.post(auth_url, data=auth_data, timeout=30)
+                  response = requests.post(auth_url, data=auth_data, timeout=30)
               
               if response.status_code == 200:
                   auth_result = response.json()
@@ -628,15 +628,21 @@ jobs:
                       f.write(f"instance_url={instance_url}\n")
                       
               else:
-                  print(f" Salesforce authentication failed: {response.status_code}")
+                  print(f" All authentication attempts failed: {response.status_code}")
                   print(f"Response: {response.text}")
                   print("")
-                  print(" Troubleshooting for Trailhead orgs:")
-                  print("1. Make sure your username includes the full domain: user@playful-badger-rww9mo.com")
-                  print("2. Try resetting your security token in Setup → Reset Security Token")
-                  print("3. Check that your password is correct")
-                  print("4. Some Trailhead orgs may need IP whitelisting")
-                  print(f"5. Your domain appears to be: {domain}")
+                  print(" Troubleshooting for Lightning Trailhead orgs:")
+                  print("1. Make sure your username is exactly: alex.codes.meah@playful-badger-rww9mo.com")
+                  print("2. Your full org URL appears to be: playful-badger-rww9mo-dev-ed.trailblaze.lightning.force.com")
+                  print("3. Try resetting your security token in Setup → Reset Security Token")
+                  print("4. Verify your password is correct in your Trailhead playground")
+                  print("5. Some Lightning orgs require different authentication methods")
+                  print("")
+                  print(" Authentication URLs tried:")
+                  print(f"   - Lightning: https://{domain}.trailblaze.lightning.force.com/services/oauth2/token")
+                  print(f"   - My Domain: https://{domain.split('.')[0]}.my.salesforce.com/services/oauth2/token")
+                  print("   - Standard: https://login.salesforce.com/services/oauth2/token")
+                  print("   - Test: https://test.salesforce.com/services/oauth2/token")
                   
                   with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
                       f.write(f"auth_success=false\n")
@@ -658,7 +664,7 @@ jobs:
           import json
           import os
           
-          print(" Importing journey data to Salesforce...")
+          print("📤 Importing journey data to Salesforce...")
           
           # Load auth info
           with open("sf_auth.json", "r") as f:
