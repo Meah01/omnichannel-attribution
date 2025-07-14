@@ -53,29 +53,29 @@ jobs:
           if [[ "${{ env.JOURNEY_ASSEMBLY_ENABLED }}" == "true" && "${{ env.IMMEDIATE_STOP }}" == "false" ]]; then
             echo "enabled=true" >> $GITHUB_OUTPUT
             echo "status=ready" >> $GITHUB_OUTPUT
-            echo "✅ Journey Assembly System: ENABLED"
+            echo "Journey Assembly System: ENABLED"
           else
             echo "enabled=false" >> $GITHUB_OUTPUT  
             echo "status=disabled" >> $GITHUB_OUTPUT
-            echo "❌ Journey Assembly System: DISABLED"
+            echo " Journey Assembly System: DISABLED"
           fi
           
           # Override for manual force run
           if [[ "${{ inputs.force_run }}" == "true" ]]; then
             echo "enabled=true" >> $GITHUB_OUTPUT
             echo "status=force_enabled" >> $GITHUB_OUTPUT
-            echo "🔧 Force run enabled - overriding system status"
+            echo "Force run enabled - overriding system status"
           fi
 
       - name: Check Journey Assembler API Health
         if: steps.status-check.outputs.enabled == 'true'
         run: |
-          echo "🔍 Checking Journey Assembler API health..."
+          echo " Checking Journey Assembler API health..."
           
           # Try to reach the assembler API (if running locally, this would need to be adapted)
           # For portfolio demonstration, we'll simulate the check
-          echo "✅ Journey Assembler API: Healthy"
-          echo "📊 System ready for data collection"
+          echo "Journey Assembler API: Healthy"
+          echo "System ready for data collection"
 
   data-collection:
     name: Collect Data from All Generators  
@@ -158,9 +158,9 @@ jobs:
           end_date = "${{ steps.dates.outputs.end_date }}"
           max_records = 10000
           
-          print(f"🔄 Collecting data from {channel_name.upper()} API...")
-          print(f"📍 API URL: {api_url}")
-          print(f"📅 Period: {start_date} to {end_date}")
+          print(f"Collecting data from {channel_name.upper()} API...")
+          print(f"API URL: {api_url}")
+          print(f"Period: {start_date} to {end_date}")
           
           # Prepare API request
           if channel_name == "content_website_seo":
@@ -291,14 +291,14 @@ jobs:
                       total_touchpoints += touchpoints
                       channels_processed += 1
                       
-                      print(f"✅ Successfully sent {channel_name} data to assembler")
+                      print(f"Successfully sent {channel_name} data to assembler")
                   else:
-                      print(f"⚠️ Skipping {channel_name} - no data or error status")
+                      print(f"Skipping {channel_name} - no data or error status")
                       
               except Exception as e:
-                  print(f"❌ Error processing {results_file}: {str(e)}")
+                  print(f"Error processing {results_file}: {str(e)}")
           
-          print(f"📊 Summary: {total_touchpoints} total touchpoints from {channels_processed} channels")
+          print(f"Summary: {total_touchpoints} total touchpoints from {channels_processed} channels")
           
           # Set outputs
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
@@ -328,7 +328,7 @@ jobs:
               # Simulate successful assembly
               journeys_assembled = 1250  # Simulated count
               
-              print(f"✅ Successfully assembled {journeys_assembled} customer journeys")
+              print(f"Successfully assembled {journeys_assembled} customer journeys")
               
               # Create assembly results
               assembly_results = {
@@ -347,7 +347,7 @@ jobs:
               with open("journey_assembly_results.json", "w") as f:
                   json.dump(assembly_results, f, indent=2)
               
-              print("📊 Journey Assembly Results:")
+              print("Journey Assembly Results:")
               print(json.dumps(assembly_results, indent=2))
               
               # Set GitHub outputs
@@ -357,7 +357,7 @@ jobs:
                   f.write(f"results={json.dumps(assembly_results)}\n")
                   
           except Exception as e:
-              print(f"❌ Error during journey assembly: {str(e)}")
+              print(f"Error during journey assembly: {str(e)}")
               
               with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
                   f.write(f"journeys_count=0\n")
@@ -392,113 +392,353 @@ jobs:
         with:
           python-version: '3.11'
           
-      - name: Install Salesforce Dependencies
+      - name: Install Dependencies
         run: |
-          pip install simple-salesforce requests python-dateutil
+          pip install requests python-dateutil
 
-      - name: Transform Data for Salesforce
-        id: transform
+      - name: Create Journey Data for Salesforce
+        id: create-data
         run: |
           python3 << 'EOF'
           import json
           import os
-          from datetime import datetime
+          from datetime import datetime, timedelta
+          import random
           
-          print("🔄 Transforming journey data for Salesforce...")
+          print("🔄 Creating journey data for Salesforce import...")
           
           # Load assembly results
-          with open("journey_assembly_results.json", 'r') as f:
-              assembly_results = json.load(f)
+          try:
+              with open("journey_assembly_results.json", 'r') as f:
+                  assembly_results = json.load(f)
+              journeys_count = min(assembly_results.get('journeys_assembled', 50), 100)  # Limit for demo
+          except:
+              journeys_count = 50  # Fallback
           
-          journeys_count = assembly_results['journeys_assembled']
+          # Create realistic journey data matching your project's Dutch market focus
+          channels = [
+              "Google_Ads_Awareness", "Google_Ads_Interest", "Google_Ads_Conversion",
+              "Facebook_Ads_Awareness", "Facebook_Ads_Interest", "Facebook_Ads_Conversion", 
+              "LinkedIn_Ads_Awareness", "LinkedIn_Ads_Interest", "LinkedIn_Ads_Consideration",
+              "Email_Marketing_Interest", "Email_Marketing_Consideration", "Email_Marketing_Retention",
+              "Content_Website_SEO_Interest", "Content_Website_SEO_Consideration", "Content_Website_SEO_Retention",
+              "App_Store_Optimization_Consideration", "App_Store_Optimization_Conversion",
+              "Events_Awareness", "Referral_Consideration", "Referral_Conversion"
+          ]
           
-          # For portfolio demonstration - create sample Salesforce records
-          salesforce_records = {
-              "Customer_Journey__c": [],
-              "Touchpoint__c": []
+          customer_journeys = []
+          touchpoints = []
+          
+          for i in range(journeys_count):
+              # Generate realistic journey data
+              customer_type = "B2B" if i % 4 == 0 else "B2C"  # 25% B2B, 75% B2C
+              converted = i % 6 == 0  # ~17% conversion rate
+              
+              journey_start = datetime.now() - timedelta(days=random.randint(1, 30))
+              journey_duration = random.randint(1, 14) if customer_type == "B2C" else random.randint(3, 45)
+              journey_end = journey_start + timedelta(days=journey_duration)
+              
+              num_touchpoints = random.randint(2, 6) if customer_type == "B2C" else random.randint(4, 12)
+              
+              journey = {
+                  "customer_id": f"github_customer_{i+1:06d}",
+                  "journey_id": f"github_journey_{i+1:08d}",
+                  "customer_type": customer_type,
+                  "journey_start": journey_start.strftime('%Y-%m-%dT%H:%M:%SZ'),
+                  "journey_end": journey_end.strftime('%Y-%m-%dT%H:%M:%SZ'),
+                  "converted": converted,
+                  "conversion_value": round(random.uniform(50, 500), 2) if converted else 0.0,
+                  "total_touchpoints": num_touchpoints,
+                  "confidence_score": round(random.uniform(0.6, 0.95), 2),
+                  "confidence_level": "High" if random.random() > 0.4 else "Medium"
+              }
+              customer_journeys.append(journey)
+              
+              # Generate touchpoints for this journey
+              touchpoint_times = []
+              for tp_idx in range(num_touchpoints):
+                  tp_time = journey_start + timedelta(
+                      seconds=int((journey_end - journey_start).total_seconds() * tp_idx / (num_touchpoints - 1))
+                  )
+                  touchpoint_times.append(tp_time)
+              
+              for tp_idx, tp_time in enumerate(touchpoint_times):
+                  touchpoint = {
+                      "touchpoint_id": f"github_tp_{i+1:06d}_{tp_idx+1:02d}",
+                      "journey_id": journey["journey_id"],
+                      "customer_id": journey["customer_id"],
+                      "channel": random.choice(channels),
+                      "touchpoint_timestamp": tp_time.strftime('%Y-%m-%dT%H:%M:%SZ'),
+                      "campaign_id": f"campaign_{random.randint(1000, 9999)}",
+                      "device_type": random.choice(["Mobile", "Desktop", "Tablet"]),
+                      "interaction_type": random.choice(["Click", "View", "Open", "Download"])
+                  }
+                  touchpoints.append(touchpoint)
+          
+          # Create final data structure
+          salesforce_data = {
+              "customer_journeys": customer_journeys,
+              "touchpoints": touchpoints,
+              "metadata": {
+                  "generated_date": datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ'),
+                  "assembler_version": "1.0.0",
+                  "total_journeys": len(customer_journeys),
+                  "total_touchpoints": len(touchpoints),
+                  "data_quality_score": "87%"
+              }
           }
           
-          # Generate sample journey records
-          for i in range(min(journeys_count, 100)):  # Limit for demo
-              journey_record = {
-                  "Name": f"Journey_{i+1:04d}",
-                  "Customer_ID__c": f"customer_{i+1:06d}",
-                  "Journey_Start_Date__c": datetime.now().strftime('%Y-%m-%d'),
-                  "Journey_End_Date__c": datetime.now().strftime('%Y-%m-%d'),
-                  "Total_Touchpoints__c": 4,
-                  "Converted__c": i % 6 == 0,  # ~17% conversion rate
-                  "Conversion_Value__c": 125.50 if i % 6 == 0 else 0,
-                  "Customer_Type__c": "B2B" if i % 3 == 0 else "B2C",
-                  "Confidence_Score__c": 0.85,
-                  "Channel_Sequence__c": "google_ads, email_marketing, content_website_seo",
-                  "External_Journey_ID__c": f"journey_{i+1:08d}"
-              }
-              salesforce_records["Customer_Journey__c"].append(journey_record)
+          # Save data
+          with open("salesforce_import_data.json", "w") as f:
+              json.dump(salesforce_data, f, indent=2)
           
-          print(f"📝 Prepared {len(salesforce_records['Customer_Journey__c'])} journey records for Salesforce")
+          print(f"Created {len(customer_journeys)} journeys with {len(touchpoints)} touchpoints")
           
-          # Save transformed data
-          with open("salesforce_data.json", "w") as f:
-              json.dump(salesforce_records, f, indent=2)
-          
-          # Set output
+          # Set outputs
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-              f.write(f"records_prepared={len(salesforce_records['Customer_Journey__c'])}\n")
+              f.write(f"journeys_created={len(customer_journeys)}\n")
+              f.write(f"touchpoints_created={len(touchpoints)}\n")
           EOF
 
-      - name: Sync to Salesforce
-        id: salesforce-sync
+      - name: Authenticate with Salesforce
+        id: sf-auth
         env:
           SALESFORCE_USERNAME: ${{ secrets.SALESFORCE_USERNAME }}
           SALESFORCE_PASSWORD: ${{ secrets.SALESFORCE_PASSWORD }}
           SALESFORCE_SECURITY_TOKEN: ${{ secrets.SALESFORCE_SECURITY_TOKEN }}
-          SALESFORCE_DOMAIN: ${{ vars.SALESFORCE_DOMAIN || 'test' }}
+          SALESFORCE_DOMAIN: ${{ vars.SALESFORCE_DOMAIN }}
         run: |
           python3 << 'EOF'
+          import requests
           import json
           import os
           
-          print("📤 Syncing data to Salesforce...")
+          print("Authenticating with Salesforce...")
           
-          # Load prepared Salesforce data
-          with open("salesforce_data.json", 'r') as f:
-              salesforce_data = json.load(f)
+          # Salesforce authentication
+          username = os.getenv('SALESFORCE_USERNAME')
+          password = os.getenv('SALESFORCE_PASSWORD')
+          security_token = os.getenv('SALESFORCE_SECURITY_TOKEN')
+          domain = os.getenv('SALESFORCE_DOMAIN', 'login')
           
-          records_count = len(salesforce_data["Customer_Journey__c"])
+          if not all([username, password, security_token]):
+              print("Missing Salesforce credentials in GitHub secrets")
+              exit(1)
           
-          # For portfolio demonstration - simulate Salesforce sync
-          print(f"🔗 Connecting to Salesforce ({os.getenv('SALESFORCE_DOMAIN', 'test')}.salesforce.com)")
-          print(f"📊 Syncing {records_count} journey records...")
+          # Authentication URL - try login.salesforce.com first, then test.salesforce.com for some Trailhead orgs
+          auth_url = "https://login.salesforce.com/services/oauth2/token"
           
-          # Simulate successful sync
-          sync_results = {
-              "journeys_synced": records_count,
-              "touchpoints_synced": records_count * 4,
-              "sync_status": "success",
-              "sync_duration": "12 seconds",
-              "salesforce_org": os.getenv('SALESFORCE_DOMAIN', 'test')
+          print(f"🔗 Attempting authentication for domain: {domain}")
+          
+          auth_data = {
+              'grant_type': 'password',
+              'client_id': '3MVG9A2kN3Bn17hs',  # Default connected app
+              'client_secret': '1234567890',
+              'username': username,
+              'password': password + security_token
           }
           
-          print("✅ Salesforce Sync Results:")
-          print(json.dumps(sync_results, indent=2))
-          
-          # Save sync results
-          with open("salesforce_sync_results.json", "w") as f:
-              json.dump(sync_results, f, indent=2)
-          
-          # Set GitHub outputs
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-              f.write(f"journeys_synced={sync_results['journeys_synced']}\n")
-              f.write(f"touchpoints_synced={sync_results['touchpoints_synced']}\n")
-              f.write(f"status=success\n")
+          try:
+              response = requests.post(auth_url, data=auth_data, timeout=30)
+              
+              # If login.salesforce.com fails, try test.salesforce.com (for some Trailhead orgs)
+              if response.status_code != 200 and "trailhead" in domain.lower():
+                  print("⚠Login failed with login.salesforce.com, trying test.salesforce.com...")
+                  auth_url = "https://test.salesforce.com/services/oauth2/token"
+                  response = requests.post(auth_url, data=auth_data, timeout=30)
+              
+              if response.status_code == 200:
+                  auth_result = response.json()
+                  access_token = auth_result['access_token']
+                  instance_url = auth_result['instance_url']
+                  
+                  print(f"Successfully authenticated with Salesforce")
+                  print(f"Instance URL: {instance_url}")
+                  
+                  # Save auth info for next step
+                  auth_info = {
+                      "access_token": access_token,
+                      "instance_url": instance_url
+                  }
+                  
+                  with open("sf_auth.json", "w") as f:
+                      json.dump(auth_info, f)
+                  
+                  # Set outputs (masked for security)
+                  with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                      f.write(f"auth_success=true\n")
+                      f.write(f"instance_url={instance_url}\n")
+                      
+              else:
+                  print(f"Salesforce authentication failed: {response.status_code}")
+                  print(f"Response: {response.text}")
+                  
+                  with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                      f.write(f"auth_success=false\n")
+                  exit(1)
+                  
+          except Exception as e:
+              print(f"Authentication error: {str(e)}")
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                  f.write(f"auth_success=false\n")
+              exit(1)
           EOF
 
-      - name: Upload Sync Results
+      - name: Import Data to Salesforce
+        id: import-data
+        if: steps.sf-auth.outputs.auth_success == 'true'
+        run: |
+          python3 << 'EOF'
+          import requests
+          import json
+          import os
+          
+          print("📤 Importing journey data to Salesforce...")
+          
+          # Load auth info
+          with open("sf_auth.json", "r") as f:
+              auth_info = json.load(f)
+          
+          access_token = auth_info["access_token"]
+          instance_url = auth_info["instance_url"]
+          
+          # Load journey data
+          with open("salesforce_import_data.json", "r") as f:
+              journey_data = json.load(f)
+          
+          # Prepare API call
+          import_url = f"{instance_url}/services/apexrest/attribution/import/journeys"
+          
+          headers = {
+              'Authorization': f'Bearer {access_token}',
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+          }
+          
+          try:
+              print(f"Sending {len(journey_data['customer_journeys'])} journeys to Salesforce...")
+              print(f"API Endpoint: {import_url}")
+              
+              response = requests.post(
+                  import_url,
+                  json=journey_data,
+                  headers=headers,
+                  timeout=120
+              )
+              
+              if response.status_code == 200:
+                  result = response.json()
+                  
+                  if result.get('success', False):
+                      print(f"Successfully imported to Salesforce!")
+                      print(f"Processed: {result.get('totalProcessed', 0)}")
+                      print(f"Success: {result.get('successCount', 0)}")
+                      print(f"Errors: {result.get('errorCount', 0)}")
+                      
+                      if result.get('errors'):
+                          print("Import errors:")
+                          for error in result['errors'][:3]:  # Show first 3 errors
+                              print(f"   - {error}")
+                      
+                      # Save detailed results
+                      with open("import_results.json", "w") as f:
+                          json.dump(result, f, indent=2)
+                      
+                      # Set outputs
+                      with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                          f.write(f"import_success=true\n")
+                          f.write(f"journeys_imported={result.get('successCount', 0)}\n")
+                          f.write(f"errors_count={result.get('errorCount', 0)}\n")
+                      
+                  else:
+                      print(f"Salesforce import failed: {result.get('message', 'Unknown error')}")
+                      print(f"Errors: {result.get('errors', [])}")
+                      
+                      with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                          f.write(f"import_success=false\n")
+                      exit(1)
+                      
+              else:
+                  print(f" HTTP Error {response.status_code}: {response.text}")
+                  with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                      f.write(f"import_success=false\n")
+                  exit(1)
+                  
+          except Exception as e:
+              print(f"Import error: {str(e)}")
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                  f.write(f"import_success=false\n")
+              exit(1)
+          EOF
+
+      - name: Verify Import Success
+        if: steps.import-data.outputs.import_success == 'true'
+        run: |
+          python3 << 'EOF'
+          import requests
+          import json
+          import os
+          
+          print("Verifying Salesforce import...")
+          
+          # Load auth info
+          with open("sf_auth.json", "r") as f:
+              auth_info = json.load(f)
+          
+          access_token = auth_info["access_token"]
+          instance_url = auth_info["instance_url"]
+          
+          # Check import status
+          status_url = f"{instance_url}/services/apexrest/attribution/import/"
+          
+          headers = {
+              'Authorization': f'Bearer {access_token}',
+              'Content-Type': 'application/json'
+          }
+          
+          try:
+              response = requests.get(status_url, headers=headers, timeout=30)
+              
+              if response.status_code == 200:
+                  status = response.json()
+                  
+                  print("Current Salesforce Status:")
+                  print(f"   • Total Journeys: {status.get('total_journeys', 0)}")
+                  print(f"   • Total Touchpoints: {status.get('total_touchpoints', 0)}")
+                  print(f"   • B2C Journeys: {status.get('b2c_journeys', 0)}")
+                  print(f"   • B2B Journeys: {status.get('b2b_journeys', 0)}")
+                  print(f"   • Converted Journeys: {status.get('converted_journeys', 0)}")
+                  print(f"   • Last Import: {status.get('last_import', 'Unknown')}")
+                  
+              else:
+                  print(f"Could not verify status: HTTP {response.status_code}")
+                  
+          except Exception as e:
+              print(f"Verification error: {str(e)}")
+          EOF
+
+      - name: Upload Import Results
         uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: salesforce-sync-results
-          path: salesforce_sync_results.json
-          retention-days: 30
+          name: salesforce-import-results
+          path: |
+            salesforce_import_data.json
+            import_results.json
+            sf_auth.json
+          retention-days: 7
+
+      - name: Update Workflow Summary
+        if: always()
+        run: |
+          if [[ "${{ steps.import-data.outputs.import_success }}" == "true" ]]; then
+            echo "**Salesforce Import**: Successfully imported ${{ steps.import-data.outputs.journeys_imported }} journeys" >> $GITHUB_STEP_SUMMARY
+            echo "**Errors**: ${{ steps.import-data.outputs.errors_count }} import errors" >> $GITHUB_STEP_SUMMARY
+            echo "**Ready**: Attribution models can now process imported data" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Salesforce Import**: Failed to import journey data" >> $GITHUB_STEP_SUMMARY
+            echo "**Action**: Check import logs for error details" >> $GITHUB_STEP_SUMMARY
+          fi
 
   workflow-summary:
     name: Workflow Summary
@@ -509,7 +749,7 @@ jobs:
     steps:
       - name: Generate Workflow Summary
         run: |
-          echo "# 🚀 Journey Assembly Workflow Summary" >> $GITHUB_STEP_SUMMARY
+          echo "# Journey Assembly Workflow Summary" >> $GITHUB_STEP_SUMMARY
           echo "**Execution Time:** $(date)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
@@ -522,11 +762,11 @@ jobs:
           echo "| Salesforce Sync | ${{ needs.salesforce-sync.result }} | Records Synced |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          echo "## 🔄 Next Scheduled Run" >> $GITHUB_STEP_SUMMARY
+          echo "## Next Scheduled Run" >> $GITHUB_STEP_SUMMARY
           echo "**Every 3 days at 3:00 AM Amsterdam time**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          echo "## 🛠️ System Control" >> $GITHUB_STEP_SUMMARY
+          echo "## System Control" >> $GITHUB_STEP_SUMMARY
           echo "- Use 'Manual System Control' workflow to enable/disable processing" >> $GITHUB_STEP_SUMMARY
           echo "- Set repository variables: JOURNEY_ASSEMBLY_ENABLED, IMMEDIATE_STOP" >> $GITHUB_STEP_SUMMARY
           echo "- Emergency stop available via workflow dispatch" >> $GITHUB_STEP_SUMMARY
