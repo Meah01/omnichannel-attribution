@@ -543,17 +543,29 @@ jobs:
           print(f"Client ID present: {'Yes' if client_id else 'No'}")
           print(f"Security token present: {'Yes' if security_token else 'No'}")
           
-          # Determine authentication URL based on domain
-          if "trailblaze" in domain or "lightning" in domain:
-              # For Lightning Trailhead orgs
-              auth_url = f"https://{domain}.trailblaze.lightning.force.com/services/oauth2/token"
-          elif domain and domain != "login":
-              # Custom domain
-              auth_url = f"https://{domain}.my.salesforce.com/services/oauth2/token"
-          else:
+          # Enhanced domain detection for Trailhead playgrounds
+          def get_auth_url(domain):
               # Standard login
-              auth_url = "https://login.salesforce.com/services/oauth2/token"
+              if not domain or domain == "login":
+                  return "https://login.salesforce.com/services/oauth2/token"
+              
+              # Test/sandbox
+              if domain == "test":
+                  return "https://test.salesforce.com/services/oauth2/token"
+              
+              # Trailhead playground patterns - check for common patterns
+              if any(pattern in domain for pattern in ['-dev-ed', 'trailblaze', 'lightning']):
+                  return f"https://{domain}.trailblaze.lightning.force.com/services/oauth2/token"
+              
+              # Enhanced check for Trailhead pattern: contains hyphens and ends with specific patterns
+              if '-' in domain and any(domain.endswith(suffix) for suffix in ['ed', 'org']):
+                  return f"https://{domain}.trailblaze.lightning.force.com/services/oauth2/token"
+              
+              # Custom domain (My Domain)
+              return f"https://{domain}.my.salesforce.com/services/oauth2/token"
           
+          # Get authentication URL
+          auth_url = get_auth_url(domain)
           print(f"Authentication URL: {auth_url}")
           
           # OAuth2 authentication data
@@ -565,74 +577,64 @@ jobs:
               'password': password + security_token
           }
           
-          try:
-              response = requests.post(auth_url, data=auth_data, timeout=30)
-              
-              if response.status_code == 200:
-                  auth_result = response.json()
-                  access_token = auth_result['access_token']
-                  instance_url = auth_result['instance_url']
+          # Try multiple authentication approaches
+          auth_attempts = [
+              auth_url,  # Primary URL based on domain
+              f"https://{domain}.trailblaze.lightning.force.com/services/oauth2/token",  # Force Trailhead
+              "https://login.salesforce.com/services/oauth2/token",  # Standard fallback
+              "https://test.salesforce.com/services/oauth2/token"  # Test fallback
+          ]
+          
+          # Remove duplicates while preserving order
+          auth_attempts = list(dict.fromkeys(auth_attempts))
+          
+          auth_success = False
+          for attempt_url in auth_attempts:
+              try:
+                  print(f"Trying authentication URL: {attempt_url}")
+                  response = requests.post(attempt_url, data=auth_data, timeout=30)
                   
-                  print(f"Successfully authenticated with Salesforce")
-                  print(f"Instance URL: {instance_url}")
-                  
-                  # Save auth info for next step
-                  auth_info = {
-                      "access_token": access_token,
-                      "instance_url": instance_url
-                  }
-                  
-                  with open("sf_auth.json", "w") as f:
-                      json.dump(auth_info, f)
-                  
-                  # Set outputs
-                  with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                      f.write(f"auth_success=true\n")
-                      f.write(f"instance_url={instance_url}\n")
+                  if response.status_code == 200:
+                      auth_result = response.json()
+                      access_token = auth_result['access_token']
+                      instance_url = auth_result['instance_url']
                       
-              else:
-                  print(f"Authentication failed: {response.status_code}")
-                  print(f"Response: {response.text}")
-                  
-                  # Try fallback URLs if primary fails
-                  fallback_urls = [
-                      "https://login.salesforce.com/services/oauth2/token",
-                      "https://test.salesforce.com/services/oauth2/token"
-                  ]
-                  
-                  for fallback_url in fallback_urls:
-                      if fallback_url != auth_url:
-                          print(f"Trying fallback URL: {fallback_url}")
-                          response = requests.post(fallback_url, data=auth_data, timeout=30)
-                          
-                          if response.status_code == 200:
-                              auth_result = response.json()
-                              access_token = auth_result['access_token']
-                              instance_url = auth_result['instance_url']
-                              
-                              print(f"Successfully authenticated with fallback URL")
-                              print(f"Instance URL: {instance_url}")
-                              
-                              auth_info = {
-                                  "access_token": access_token,
-                                  "instance_url": instance_url
-                              }
-                              
-                              with open("sf_auth.json", "w") as f:
-                                  json.dump(auth_info, f)
-                              
-                              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                                  f.write(f"auth_success=true\n")
-                                  f.write(f"instance_url={instance_url}\n")
-                              break
-                  else:
-                      print("All authentication attempts failed")
+                      print(f"Successfully authenticated with Salesforce")
+                      print(f"Instance URL: {instance_url}")
+                      print(f"Working auth URL: {attempt_url}")
+                      
+                      # Save auth info for next step
+                      auth_info = {
+                          "access_token": access_token,
+                          "instance_url": instance_url,
+                          "auth_url": attempt_url
+                      }
+                      
+                      with open("sf_auth.json", "w") as f:
+                          json.dump(auth_info, f)
+                      
+                      # Set outputs
                       with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                          f.write(f"auth_success=false\n")
-                      exit(1)
-                  
-          except Exception as e:
-              print(f"Authentication error: {str(e)}")
+                          f.write(f"auth_success=true\n")
+                          f.write(f"instance_url={instance_url}\n")
+                      
+                      auth_success = True
+                      break
+                      
+                  else:
+                      print(f"Auth failed with {attempt_url}: {response.status_code}")
+                      print(f"Error: {response.text[:200]}")
+                      
+              except Exception as e:
+                  print(f"Error with {attempt_url}: {str(e)[:100]}")
+                  continue
+          
+          if not auth_success:
+              print("All authentication attempts failed")
+              print("URLs attempted:")
+              for url in auth_attempts:
+                  print(f"  - {url}")
+              
               with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
                   f.write(f"auth_success=false\n")
               exit(1)
