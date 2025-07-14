@@ -370,444 +370,444 @@ jobs:
           path: journey_assembly_results.json
           retention-days: 30
 
-salesforce-sync:
-    name: Sync Journeys to Salesforce
-    runs-on: ubuntu-latest
-    needs: [check-system-status, journey-assembly]
-    if: needs.journey-assembly.outputs.assembly_status == 'success'
-    
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Download Journey Assembly Results
-        uses: actions/download-artifact@v4
-        with:
-          name: journey-assembly-results
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-          
-      - name: Install Dependencies
-        run: |
-          pip install requests python-dateutil
-
-      - name: Create Journey Data for Salesforce
-        id: create-data
-        run: |
-          python3 << 'EOF'
-          import json
-          import os
-          from datetime import datetime, timedelta
-          import random
-          
-          print("Creating journey data for Salesforce import...")
-          
-          # Load assembly results
-          try:
-              with open("journey_assembly_results.json", 'r') as f:
-                  assembly_results = json.load(f)
-              journeys_count = min(assembly_results.get('journeys_assembled', 50), 100)  # Limit for demo
-          except:
-              journeys_count = 50  # Fallback
-          
-          # Create realistic journey data matching your project's Dutch market focus
-          channels = [
-              "Google_Ads_Awareness", "Google_Ads_Interest", "Google_Ads_Conversion",
-              "Facebook_Ads_Awareness", "Facebook_Ads_Interest", "Facebook_Ads_Conversion", 
-              "LinkedIn_Ads_Awareness", "LinkedIn_Ads_Interest", "LinkedIn_Ads_Consideration",
-              "Email_Marketing_Interest", "Email_Marketing_Consideration", "Email_Marketing_Retention",
-              "Content_Website_SEO_Interest", "Content_Website_SEO_Consideration", "Content_Website_SEO_Retention",
-              "App_Store_Optimization_Consideration", "App_Store_Optimization_Conversion",
-              "Events_Awareness", "Referral_Consideration", "Referral_Conversion"
-          ]
-          
-          customer_journeys = []
-          touchpoints = []
-          
-          for i in range(journeys_count):
-              # Generate realistic journey data
-              customer_type = "B2B" if i % 4 == 0 else "B2C"  # 25% B2B, 75% B2C
-              converted = i % 6 == 0  # ~17% conversion rate
-              
-              journey_start = datetime.now() - timedelta(days=random.randint(1, 30))
-              journey_duration = random.randint(1, 14) if customer_type == "B2C" else random.randint(3, 45)
-              journey_end = journey_start + timedelta(days=journey_duration)
-              
-              num_touchpoints = random.randint(2, 6) if customer_type == "B2C" else random.randint(4, 12)
-              
-              journey = {
-                  "customer_id": f"github_customer_{i+1:06d}",
-                  "journey_id": f"github_journey_{i+1:08d}",
-                  "customer_type": customer_type,
-                  "journey_start": journey_start.strftime('%Y-%m-%dT%H:%M:%SZ'),
-                  "journey_end": journey_end.strftime('%Y-%m-%dT%H:%M:%SZ'),
-                  "converted": converted,
-                  "conversion_value": round(random.uniform(50, 500), 2) if converted else 0.0,
-                  "total_touchpoints": num_touchpoints,
-                  "confidence_score": round(random.uniform(0.6, 0.95), 2),
-                  "confidence_level": "High" if random.random() > 0.4 else "Medium"
-              }
-              customer_journeys.append(journey)
-              
-              # Generate touchpoints for this journey
-              touchpoint_times = []
-              for tp_idx in range(num_touchpoints):
-                  tp_time = journey_start + timedelta(
-                      seconds=int((journey_end - journey_start).total_seconds() * tp_idx / (num_touchpoints - 1))
-                  )
-                  touchpoint_times.append(tp_time)
-              
-              for tp_idx, tp_time in enumerate(touchpoint_times):
-                  touchpoint = {
-                      "touchpoint_id": f"github_tp_{i+1:06d}_{tp_idx+1:02d}",
-                      "journey_id": journey["journey_id"],
-                      "customer_id": journey["customer_id"],
-                      "channel": random.choice(channels),
-                      "touchpoint_timestamp": tp_time.strftime('%Y-%m-%dT%H:%M:%SZ'),
-                      "campaign_id": f"campaign_{random.randint(1000, 9999)}",
-                      "device_type": random.choice(["Mobile", "Desktop", "Tablet"]),
-                      "interaction_type": random.choice(["Click", "View", "Open", "Download"])
-                  }
-                  touchpoints.append(touchpoint)
-          
-          # Create final data structure
-          salesforce_data = {
-              "customer_journeys": customer_journeys,
-              "touchpoints": touchpoints,
-              "metadata": {
-                  "generated_date": datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ'),
-                  "assembler_version": "1.0.0",
-                  "total_journeys": len(customer_journeys),
-                  "total_touchpoints": len(touchpoints),
-                  "data_quality_score": "87%"
-              }
-          }
-          
-          # Save data
-          with open("salesforce_import_data.json", "w") as f:
-              json.dump(salesforce_data, f, indent=2)
-          
-          print(f"Created {len(customer_journeys)} journeys with {len(touchpoints)} touchpoints")
-          
-          # Set outputs
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-              f.write(f"journeys_created={len(customer_journeys)}\n")
-              f.write(f"touchpoints_created={len(touchpoints)}\n")
-          EOF
-
-      - name: Authenticate with Salesforce
-        id: sf-auth
-        env:
-          SALESFORCE_LOGIN: ${{ secrets.SALESFORCE_LOGIN }}
-          SALESFORCE_DOMAIN: ${{ vars.SALESFORCE_DOMAIN }}
-        run: |
-          python3 << 'EOF'
-          import requests
-          import json
-          import os
-          
-          print("Authenticating with Salesforce using SALESFORCE_LOGIN...")
-          
-          # Get the login credentials from the single secret
-          login_data = os.getenv('SALESFORCE_LOGIN', '').strip()
-          domain = os.getenv('SALESFORCE_DOMAIN', 'login')
-          
-          if not login_data:
-              print("Missing SALESFORCE_LOGIN secret")
-              exit(1)
-          
-          # Parse SALESFORCE_LOGIN - try different formats
-          username = None
-          password = None
-          security_token = None
-          
-          try:
-              # Try JSON format first
-              if login_data.startswith('{'):
-                  login_json = json.loads(login_data)
-                  username = login_json.get('username')
-                  password = login_json.get('password')
-                  security_token = login_json.get('security_token') or login_json.get('token')
-              
-              # Try colon-separated format: username:password:token
-              elif ':' in login_data:
-                  parts = login_data.split(':')
-                  if len(parts) >= 2:
-                      username = parts[0]
-                      password = parts[1]
-                      security_token = parts[2] if len(parts) > 2 else ''
-              
-              # Try single value (just username, prompt user for format)
-              else:
-                  print("SALESFORCE_LOGIN format not recognized")
-                  print(f"Current value appears to be: {login_data[:20]}...")
-                  print("Expected formats:")
-                  print("1. JSON: {\"username\":\"user@email.com\",\"password\":\"pass\",\"security_token\":\"token\"}")
-                  print("2. Colon-separated: username:password:security_token")
-                  print("3. Colon-separated: username:password (if no security token needed)")
-                  exit(1)
-          
-          except Exception as e:
-              print(f"Error parsing SALESFORCE_LOGIN: {str(e)}")
-              print("Please check the format of your SALESFORCE_LOGIN secret")
-              exit(1)
-          
-          if not username or not password:
-              print("Could not extract username and password from SALESFORCE_LOGIN")
-              print("Please check the format of your secret")
-              exit(1)
-          
-          print(f"Parsed credentials for user: {username}")
-          print(f"Security token present: {'Yes' if security_token else 'No'}")
-          
-          # Authentication URL - handle different Trailhead org types
-          if "trailblaze" in domain or "lightning" in domain:
-              # For Lightning Trailhead orgs with trailblaze domains
-              auth_url = f"https://{domain}.trailblaze.lightning.force.com/services/oauth2/token"
-              print(f"Using Lightning Trailhead auth URL: {auth_url}")
-          else:
-              # Standard authentication URLs
-              auth_url = "https://login.salesforce.com/services/oauth2/token"
-              print(f"Attempting authentication for domain: {domain}")
-          
-          # Try authentication without client credentials first (works for many Trailhead orgs)
-          auth_data = {
-              'grant_type': 'password',
-              'username': username,
-              'password': password + (security_token or '')
-          }
-          
-          try:
-              print("Attempting authentication without client credentials...")
-              response = requests.post(auth_url, data=auth_data, timeout=30)
-              
-              # If Lightning URL fails, try the My Domain approach
-              if response.status_code != 200 and "trailblaze" in domain:
-                  print("Lightning auth failed, trying My Domain URL...")
-                  mydomain_url = f"https://{domain.split('.')[0]}.my.salesforce.com/services/oauth2/token"
-                  print(f"My Domain URL: {mydomain_url}")
-                  response = requests.post(mydomain_url, data=auth_data, timeout=30)
-              
-              # If still failing, try standard URLs
-              if response.status_code != 200:
-                  print("Custom URLs failed, trying standard login.salesforce.com...")
-                  auth_url = "https://login.salesforce.com/services/oauth2/token"
-                  response = requests.post(auth_url, data=auth_data, timeout=30)
-              
-              # If login.salesforce.com fails, try test.salesforce.com
-              if response.status_code != 200:
-                  print("Login.salesforce.com failed, trying test.salesforce.com...")
-                  auth_url = "https://test.salesforce.com/services/oauth2/token"
-                  response = requests.post(auth_url, data=auth_data, timeout=30)
-              
-              if response.status_code == 200:
-                  auth_result = response.json()
-                  access_token = auth_result['access_token']
-                  instance_url = auth_result['instance_url']
-                  
-                  print(f"Successfully authenticated with Salesforce")
-                  print(f"Instance URL: {instance_url}")
-                  
-                  # Save auth info for next step
-                  auth_info = {
-                      "access_token": access_token,
-                      "instance_url": instance_url
-                  }
-                  
-                  with open("sf_auth.json", "w") as f:
-                      json.dump(auth_info, f)
-                  
-                  # Set outputs (masked for security)
-                  with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                      f.write(f"auth_success=true\n")
-                      f.write(f"instance_url={instance_url}\n")
-                      
-              else:
-                  print(f"All authentication attempts failed: {response.status_code}")
-                  print(f"Response: {response.text}")
-                  print("")
-                  print("Troubleshooting for Lightning Trailhead orgs:")
-                  print("1. Make sure your username is exactly: alex.codes.meah@playful-badger-rww9mo.com")
-                  print("2. Your full org URL appears to be: playful-badger-rww9mo-dev-ed.trailblaze.lightning.force.com")
-                  print("3. Try resetting your security token in Setup -> Reset Security Token")
-                  print("4. Verify your password is correct in your Trailhead playground")
-                  print("5. Some Lightning orgs require different authentication methods")
-                  print("")
-                  print("Authentication URLs tried:")
-                  print(f"   - Lightning: https://{domain}.trailblaze.lightning.force.com/services/oauth2/token")
-                  print(f"   - My Domain: https://{domain.split('.')[0]}.my.salesforce.com/services/oauth2/token")
-                  print("   - Standard: https://login.salesforce.com/services/oauth2/token")
-                  print("   - Test: https://test.salesforce.com/services/oauth2/token")
-                  
-                  with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                      f.write(f"auth_success=false\n")
-                  exit(1)
-                  
-          except Exception as e:
-              print(f"Authentication error: {str(e)}")
-              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                  f.write(f"auth_success=false\n")
-              exit(1)
-          EOF
-
-      - name: Import Data to Salesforce
-        id: import-data
-        if: steps.sf-auth.outputs.auth_success == 'true'
-        run: |
-          python3 << 'EOF'
-          import requests
-          import json
-          import os
-          
-          print("Importing journey data to Salesforce...")
-          
-          # Load auth info
-          with open("sf_auth.json", "r") as f:
-              auth_info = json.load(f)
-          
-          access_token = auth_info["access_token"]
-          instance_url = auth_info["instance_url"]
-          
-          # Load journey data
-          with open("salesforce_import_data.json", "r") as f:
-              journey_data = json.load(f)
-          
-          # Prepare API call
-          import_url = f"{instance_url}/services/apexrest/attribution/import/journeys"
-          
-          headers = {
-              'Authorization': f'Bearer {access_token}',
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-          }
-          
-          try:
-              print(f"Sending {len(journey_data['customer_journeys'])} journeys to Salesforce...")
-              print(f"API Endpoint: {import_url}")
-              
-              response = requests.post(
-                  import_url,
-                  json=journey_data,
-                  headers=headers,
-                  timeout=120
-              )
-              
-              if response.status_code == 200:
-                  result = response.json()
-                  
-                  if result.get('success', False):
-                      print(f"Successfully imported to Salesforce!")
-                      print(f"Processed: {result.get('totalProcessed', 0)}")
-                      print(f"Success: {result.get('successCount', 0)}")
-                      print(f"Errors: {result.get('errorCount', 0)}")
-                      
-                      if result.get('errors'):
-                          print("Import errors:")
-                          for error in result['errors'][:3]:  # Show first 3 errors
-                              print(f"   - {error}")
-                      
-                      # Save detailed results
-                      with open("import_results.json", "w") as f:
-                          json.dump(result, f, indent=2)
-                      
-                      # Set outputs
-                      with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                          f.write(f"import_success=true\n")
-                          f.write(f"journeys_imported={result.get('successCount', 0)}\n")
-                          f.write(f"errors_count={result.get('errorCount', 0)}\n")
-                      
-                  else:
-                      print(f"Salesforce import failed: {result.get('message', 'Unknown error')}")
-                      print(f"Errors: {result.get('errors', [])}")
-                      
-                      with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                          f.write(f"import_success=false\n")
-                      exit(1)
-                      
-              else:
-                  print(f"HTTP Error {response.status_code}: {response.text}")
-                  with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                      f.write(f"import_success=false\n")
-                  exit(1)
-                  
-          except Exception as e:
-              print(f"Import error: {str(e)}")
-              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                  f.write(f"import_success=false\n")
-              exit(1)
-          EOF
-
-      - name: Verify Import Success
-        if: steps.import-data.outputs.import_success == 'true'
-        run: |
-          python3 << 'EOF'
-          import requests
-          import json
-          import os
-          
-          print("Verifying Salesforce import...")
-          
-          # Load auth info
-          with open("sf_auth.json", "r") as f:
-              auth_info = json.load(f)
-          
-          access_token = auth_info["access_token"]
-          instance_url = auth_info["instance_url"]
-          
-          # Check import status
-          status_url = f"{instance_url}/services/apexrest/attribution/import/"
-          
-          headers = {
-              'Authorization': f'Bearer {access_token}',
-              'Content-Type': 'application/json'
-          }
-          
-          try:
-              response = requests.get(status_url, headers=headers, timeout=30)
-              
-              if response.status_code == 200:
-                  status = response.json()
-                  
-                  print("Current Salesforce Status:")
-                  print(f"   Total Journeys: {status.get('total_journeys', 0)}")
-                  print(f"   Total Touchpoints: {status.get('total_touchpoints', 0)}")
-                  print(f"   B2C Journeys: {status.get('b2c_journeys', 0)}")
-                  print(f"   B2B Journeys: {status.get('b2b_journeys', 0)}")
-                  print(f"   Converted Journeys: {status.get('converted_journeys', 0)}")
-                  print(f"   Last Import: {status.get('last_import', 'Unknown')}")
-                  
-              else:
-                  print(f"Could not verify status: HTTP {response.status_code}")
-                  
-          except Exception as e:
-              print(f"Verification error: {str(e)}")
-          EOF
-
-      - name: Upload Import Results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: salesforce-import-results
-          path: |
-            salesforce_import_data.json
-            import_results.json
-            sf_auth.json
-          retention-days: 7
-
-      - name: Update Workflow Summary
-        if: always()
-        run: |
-          if [[ "${{ steps.import-data.outputs.import_success }}" == "true" ]]; then
-            echo "**Salesforce Import**: Successfully imported ${{ steps.import-data.outputs.journeys_imported }} journeys" >> $GITHUB_STEP_SUMMARY
-            echo "**Errors**: ${{ steps.import-data.outputs.errors_count }} import errors" >> $GITHUB_STEP_SUMMARY
-            echo "**Ready**: Attribution models can now process imported data" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "**Salesforce Import**: Failed to import journey data" >> $GITHUB_STEP_SUMMARY
-            echo "**Action**: Check import logs for error details" >> $GITHUB_STEP_SUMMARY
-          fi
+  salesforce-sync:
+      name: Sync Journeys to Salesforce
+      runs-on: ubuntu-latest
+      needs: [check-system-status, journey-assembly]
+      if: needs.journey-assembly.outputs.assembly_status == 'success'
+      
+      steps:
+        - name: Checkout Repository
+          uses: actions/checkout@v4
+  
+        - name: Download Journey Assembly Results
+          uses: actions/download-artifact@v4
+          with:
+            name: journey-assembly-results
+  
+        - name: Set up Python
+          uses: actions/setup-python@v4
+          with:
+            python-version: '3.11'
+            
+        - name: Install Dependencies
+          run: |
+            pip install requests python-dateutil
+  
+        - name: Create Journey Data for Salesforce
+          id: create-data
+          run: |
+            python3 << 'EOF'
+            import json
+            import os
+            from datetime import datetime, timedelta
+            import random
+            
+            print("Creating journey data for Salesforce import...")
+            
+            # Load assembly results
+            try:
+                with open("journey_assembly_results.json", 'r') as f:
+                    assembly_results = json.load(f)
+                journeys_count = min(assembly_results.get('journeys_assembled', 50), 100)  # Limit for demo
+            except:
+                journeys_count = 50  # Fallback
+            
+            # Create realistic journey data matching your project's Dutch market focus
+            channels = [
+                "Google_Ads_Awareness", "Google_Ads_Interest", "Google_Ads_Conversion",
+                "Facebook_Ads_Awareness", "Facebook_Ads_Interest", "Facebook_Ads_Conversion", 
+                "LinkedIn_Ads_Awareness", "LinkedIn_Ads_Interest", "LinkedIn_Ads_Consideration",
+                "Email_Marketing_Interest", "Email_Marketing_Consideration", "Email_Marketing_Retention",
+                "Content_Website_SEO_Interest", "Content_Website_SEO_Consideration", "Content_Website_SEO_Retention",
+                "App_Store_Optimization_Consideration", "App_Store_Optimization_Conversion",
+                "Events_Awareness", "Referral_Consideration", "Referral_Conversion"
+            ]
+            
+            customer_journeys = []
+            touchpoints = []
+            
+            for i in range(journeys_count):
+                # Generate realistic journey data
+                customer_type = "B2B" if i % 4 == 0 else "B2C"  # 25% B2B, 75% B2C
+                converted = i % 6 == 0  # ~17% conversion rate
+                
+                journey_start = datetime.now() - timedelta(days=random.randint(1, 30))
+                journey_duration = random.randint(1, 14) if customer_type == "B2C" else random.randint(3, 45)
+                journey_end = journey_start + timedelta(days=journey_duration)
+                
+                num_touchpoints = random.randint(2, 6) if customer_type == "B2C" else random.randint(4, 12)
+                
+                journey = {
+                    "customer_id": f"github_customer_{i+1:06d}",
+                    "journey_id": f"github_journey_{i+1:08d}",
+                    "customer_type": customer_type,
+                    "journey_start": journey_start.strftime('%Y-%m-%dT%H:%M:%SZ'),
+                    "journey_end": journey_end.strftime('%Y-%m-%dT%H:%M:%SZ'),
+                    "converted": converted,
+                    "conversion_value": round(random.uniform(50, 500), 2) if converted else 0.0,
+                    "total_touchpoints": num_touchpoints,
+                    "confidence_score": round(random.uniform(0.6, 0.95), 2),
+                    "confidence_level": "High" if random.random() > 0.4 else "Medium"
+                }
+                customer_journeys.append(journey)
+                
+                # Generate touchpoints for this journey
+                touchpoint_times = []
+                for tp_idx in range(num_touchpoints):
+                    tp_time = journey_start + timedelta(
+                        seconds=int((journey_end - journey_start).total_seconds() * tp_idx / (num_touchpoints - 1))
+                    )
+                    touchpoint_times.append(tp_time)
+                
+                for tp_idx, tp_time in enumerate(touchpoint_times):
+                    touchpoint = {
+                        "touchpoint_id": f"github_tp_{i+1:06d}_{tp_idx+1:02d}",
+                        "journey_id": journey["journey_id"],
+                        "customer_id": journey["customer_id"],
+                        "channel": random.choice(channels),
+                        "touchpoint_timestamp": tp_time.strftime('%Y-%m-%dT%H:%M:%SZ'),
+                        "campaign_id": f"campaign_{random.randint(1000, 9999)}",
+                        "device_type": random.choice(["Mobile", "Desktop", "Tablet"]),
+                        "interaction_type": random.choice(["Click", "View", "Open", "Download"])
+                    }
+                    touchpoints.append(touchpoint)
+            
+            # Create final data structure
+            salesforce_data = {
+                "customer_journeys": customer_journeys,
+                "touchpoints": touchpoints,
+                "metadata": {
+                    "generated_date": datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ'),
+                    "assembler_version": "1.0.0",
+                    "total_journeys": len(customer_journeys),
+                    "total_touchpoints": len(touchpoints),
+                    "data_quality_score": "87%"
+                }
+            }
+            
+            # Save data
+            with open("salesforce_import_data.json", "w") as f:
+                json.dump(salesforce_data, f, indent=2)
+            
+            print(f"Created {len(customer_journeys)} journeys with {len(touchpoints)} touchpoints")
+            
+            # Set outputs
+            with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                f.write(f"journeys_created={len(customer_journeys)}\n")
+                f.write(f"touchpoints_created={len(touchpoints)}\n")
+            EOF
+  
+        - name: Authenticate with Salesforce
+          id: sf-auth
+          env:
+            SALESFORCE_LOGIN: ${{ secrets.SALESFORCE_LOGIN }}
+            SALESFORCE_DOMAIN: ${{ vars.SALESFORCE_DOMAIN }}
+          run: |
+            python3 << 'EOF'
+            import requests
+            import json
+            import os
+            
+            print("Authenticating with Salesforce using SALESFORCE_LOGIN...")
+            
+            # Get the login credentials from the single secret
+            login_data = os.getenv('SALESFORCE_LOGIN', '').strip()
+            domain = os.getenv('SALESFORCE_DOMAIN', 'login')
+            
+            if not login_data:
+                print("Missing SALESFORCE_LOGIN secret")
+                exit(1)
+            
+            # Parse SALESFORCE_LOGIN - try different formats
+            username = None
+            password = None
+            security_token = None
+            
+            try:
+                # Try JSON format first
+                if login_data.startswith('{'):
+                    login_json = json.loads(login_data)
+                    username = login_json.get('username')
+                    password = login_json.get('password')
+                    security_token = login_json.get('security_token') or login_json.get('token')
+                
+                # Try colon-separated format: username:password:token
+                elif ':' in login_data:
+                    parts = login_data.split(':')
+                    if len(parts) >= 2:
+                        username = parts[0]
+                        password = parts[1]
+                        security_token = parts[2] if len(parts) > 2 else ''
+                
+                # Try single value (just username, prompt user for format)
+                else:
+                    print("SALESFORCE_LOGIN format not recognized")
+                    print(f"Current value appears to be: {login_data[:20]}...")
+                    print("Expected formats:")
+                    print("1. JSON: {\"username\":\"user@email.com\",\"password\":\"pass\",\"security_token\":\"token\"}")
+                    print("2. Colon-separated: username:password:security_token")
+                    print("3. Colon-separated: username:password (if no security token needed)")
+                    exit(1)
+            
+            except Exception as e:
+                print(f"Error parsing SALESFORCE_LOGIN: {str(e)}")
+                print("Please check the format of your SALESFORCE_LOGIN secret")
+                exit(1)
+            
+            if not username or not password:
+                print("Could not extract username and password from SALESFORCE_LOGIN")
+                print("Please check the format of your secret")
+                exit(1)
+            
+            print(f"Parsed credentials for user: {username}")
+            print(f"Security token present: {'Yes' if security_token else 'No'}")
+            
+            # Authentication URL - handle different Trailhead org types
+            if "trailblaze" in domain or "lightning" in domain:
+                # For Lightning Trailhead orgs with trailblaze domains
+                auth_url = f"https://{domain}.trailblaze.lightning.force.com/services/oauth2/token"
+                print(f"Using Lightning Trailhead auth URL: {auth_url}")
+            else:
+                # Standard authentication URLs
+                auth_url = "https://login.salesforce.com/services/oauth2/token"
+                print(f"Attempting authentication for domain: {domain}")
+            
+            # Try authentication without client credentials first (works for many Trailhead orgs)
+            auth_data = {
+                'grant_type': 'password',
+                'username': username,
+                'password': password + (security_token or '')
+            }
+            
+            try:
+                print("Attempting authentication without client credentials...")
+                response = requests.post(auth_url, data=auth_data, timeout=30)
+                
+                # If Lightning URL fails, try the My Domain approach
+                if response.status_code != 200 and "trailblaze" in domain:
+                    print("Lightning auth failed, trying My Domain URL...")
+                    mydomain_url = f"https://{domain.split('.')[0]}.my.salesforce.com/services/oauth2/token"
+                    print(f"My Domain URL: {mydomain_url}")
+                    response = requests.post(mydomain_url, data=auth_data, timeout=30)
+                
+                # If still failing, try standard URLs
+                if response.status_code != 200:
+                    print("Custom URLs failed, trying standard login.salesforce.com...")
+                    auth_url = "https://login.salesforce.com/services/oauth2/token"
+                    response = requests.post(auth_url, data=auth_data, timeout=30)
+                
+                # If login.salesforce.com fails, try test.salesforce.com
+                if response.status_code != 200:
+                    print("Login.salesforce.com failed, trying test.salesforce.com...")
+                    auth_url = "https://test.salesforce.com/services/oauth2/token"
+                    response = requests.post(auth_url, data=auth_data, timeout=30)
+                
+                if response.status_code == 200:
+                    auth_result = response.json()
+                    access_token = auth_result['access_token']
+                    instance_url = auth_result['instance_url']
+                    
+                    print(f"Successfully authenticated with Salesforce")
+                    print(f"Instance URL: {instance_url}")
+                    
+                    # Save auth info for next step
+                    auth_info = {
+                        "access_token": access_token,
+                        "instance_url": instance_url
+                    }
+                    
+                    with open("sf_auth.json", "w") as f:
+                        json.dump(auth_info, f)
+                    
+                    # Set outputs (masked for security)
+                    with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                        f.write(f"auth_success=true\n")
+                        f.write(f"instance_url={instance_url}\n")
+                        
+                else:
+                    print(f"All authentication attempts failed: {response.status_code}")
+                    print(f"Response: {response.text}")
+                    print("")
+                    print("Troubleshooting for Lightning Trailhead orgs:")
+                    print("1. Make sure your username is exactly: alex.codes.meah@playful-badger-rww9mo.com")
+                    print("2. Your full org URL appears to be: playful-badger-rww9mo-dev-ed.trailblaze.lightning.force.com")
+                    print("3. Try resetting your security token in Setup -> Reset Security Token")
+                    print("4. Verify your password is correct in your Trailhead playground")
+                    print("5. Some Lightning orgs require different authentication methods")
+                    print("")
+                    print("Authentication URLs tried:")
+                    print(f"   - Lightning: https://{domain}.trailblaze.lightning.force.com/services/oauth2/token")
+                    print(f"   - My Domain: https://{domain.split('.')[0]}.my.salesforce.com/services/oauth2/token")
+                    print("   - Standard: https://login.salesforce.com/services/oauth2/token")
+                    print("   - Test: https://test.salesforce.com/services/oauth2/token")
+                    
+                    with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                        f.write(f"auth_success=false\n")
+                    exit(1)
+                    
+            except Exception as e:
+                print(f"Authentication error: {str(e)}")
+                with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                    f.write(f"auth_success=false\n")
+                exit(1)
+            EOF
+  
+        - name: Import Data to Salesforce
+          id: import-data
+          if: steps.sf-auth.outputs.auth_success == 'true'
+          run: |
+            python3 << 'EOF'
+            import requests
+            import json
+            import os
+            
+            print("Importing journey data to Salesforce...")
+            
+            # Load auth info
+            with open("sf_auth.json", "r") as f:
+                auth_info = json.load(f)
+            
+            access_token = auth_info["access_token"]
+            instance_url = auth_info["instance_url"]
+            
+            # Load journey data
+            with open("salesforce_import_data.json", "r") as f:
+                journey_data = json.load(f)
+            
+            # Prepare API call
+            import_url = f"{instance_url}/services/apexrest/attribution/import/journeys"
+            
+            headers = {
+                'Authorization': f'Bearer {access_token}',
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+            
+            try:
+                print(f"Sending {len(journey_data['customer_journeys'])} journeys to Salesforce...")
+                print(f"API Endpoint: {import_url}")
+                
+                response = requests.post(
+                    import_url,
+                    json=journey_data,
+                    headers=headers,
+                    timeout=120
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    
+                    if result.get('success', False):
+                        print(f"Successfully imported to Salesforce!")
+                        print(f"Processed: {result.get('totalProcessed', 0)}")
+                        print(f"Success: {result.get('successCount', 0)}")
+                        print(f"Errors: {result.get('errorCount', 0)}")
+                        
+                        if result.get('errors'):
+                            print("Import errors:")
+                            for error in result['errors'][:3]:  # Show first 3 errors
+                                print(f"   - {error}")
+                        
+                        # Save detailed results
+                        with open("import_results.json", "w") as f:
+                            json.dump(result, f, indent=2)
+                        
+                        # Set outputs
+                        with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                            f.write(f"import_success=true\n")
+                            f.write(f"journeys_imported={result.get('successCount', 0)}\n")
+                            f.write(f"errors_count={result.get('errorCount', 0)}\n")
+                        
+                    else:
+                        print(f"Salesforce import failed: {result.get('message', 'Unknown error')}")
+                        print(f"Errors: {result.get('errors', [])}")
+                        
+                        with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                            f.write(f"import_success=false\n")
+                        exit(1)
+                        
+                else:
+                    print(f"HTTP Error {response.status_code}: {response.text}")
+                    with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                        f.write(f"import_success=false\n")
+                    exit(1)
+                    
+            except Exception as e:
+                print(f"Import error: {str(e)}")
+                with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                    f.write(f"import_success=false\n")
+                exit(1)
+            EOF
+  
+        - name: Verify Import Success
+          if: steps.import-data.outputs.import_success == 'true'
+          run: |
+            python3 << 'EOF'
+            import requests
+            import json
+            import os
+            
+            print("Verifying Salesforce import...")
+            
+            # Load auth info
+            with open("sf_auth.json", "r") as f:
+                auth_info = json.load(f)
+            
+            access_token = auth_info["access_token"]
+            instance_url = auth_info["instance_url"]
+            
+            # Check import status
+            status_url = f"{instance_url}/services/apexrest/attribution/import/"
+            
+            headers = {
+                'Authorization': f'Bearer {access_token}',
+                'Content-Type': 'application/json'
+            }
+            
+            try:
+                response = requests.get(status_url, headers=headers, timeout=30)
+                
+                if response.status_code == 200:
+                    status = response.json()
+                    
+                    print("Current Salesforce Status:")
+                    print(f"   Total Journeys: {status.get('total_journeys', 0)}")
+                    print(f"   Total Touchpoints: {status.get('total_touchpoints', 0)}")
+                    print(f"   B2C Journeys: {status.get('b2c_journeys', 0)}")
+                    print(f"   B2B Journeys: {status.get('b2b_journeys', 0)}")
+                    print(f"   Converted Journeys: {status.get('converted_journeys', 0)}")
+                    print(f"   Last Import: {status.get('last_import', 'Unknown')}")
+                    
+                else:
+                    print(f"Could not verify status: HTTP {response.status_code}")
+                    
+            except Exception as e:
+                print(f"Verification error: {str(e)}")
+            EOF
+  
+        - name: Upload Import Results
+          uses: actions/upload-artifact@v4
+          if: always()
+          with:
+            name: salesforce-import-results
+            path: |
+              salesforce_import_data.json
+              import_results.json
+              sf_auth.json
+            retention-days: 7
+  
+        - name: Update Workflow Summary
+          if: always()
+          run: |
+            if [[ "${{ steps.import-data.outputs.import_success }}" == "true" ]]; then
+              echo "**Salesforce Import**: Successfully imported ${{ steps.import-data.outputs.journeys_imported }} journeys" >> $GITHUB_STEP_SUMMARY
+              echo "**Errors**: ${{ steps.import-data.outputs.errors_count }} import errors" >> $GITHUB_STEP_SUMMARY
+              echo "**Ready**: Attribution models can now process imported data" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "**Salesforce Import**: Failed to import journey data" >> $GITHUB_STEP_SUMMARY
+              echo "**Action**: Check import logs for error details" >> $GITHUB_STEP_SUMMARY
+            fi
 
   workflow-summary:
     name: Workflow Summary
