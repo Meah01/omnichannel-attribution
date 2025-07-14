@@ -498,7 +498,7 @@ jobs:
               f.write(f"touchpoints_created={len(touchpoints)}\n")
           EOF
 
-      - name: Authenticate with Salesforce
+- name: Authenticate with Salesforce
         id: sf-auth
         env:
           SALESFORCE_LOGIN: ${{ secrets.SALESFORCE_LOGIN }}
@@ -508,11 +508,25 @@ jobs:
           import requests
           import json
           import os
-          import urllib.parse
+          from requests.adapters import HTTPAdapter
+          from urllib3.util.retry import Retry
           
-          print("Authenticating with Salesforce using Simple OAuth...")
+          print("Authenticating with Salesforce using fixed redirect handling...")
           
-          # Get the login credentials from the secret
+          # Configure session with proper redirect handling
+          session = requests.Session()
+          
+          # Custom adapter to maintain POST method on redirects
+          class PostRedirectAdapter(HTTPAdapter):
+              def send(self, request, **kwargs):
+                  # Disable automatic redirects - we'll handle them manually
+                  kwargs['allow_redirects'] = False
+                  return super().send(request, **kwargs)
+          
+          session.mount('http://', PostRedirectAdapter())
+          session.mount('https://', PostRedirectAdapter())
+          
+          # Get credentials
           login_data = os.getenv('SALESFORCE_LOGIN', '').strip()
           domain = os.getenv('SALESFORCE_DOMAIN', 'login')
           
@@ -520,98 +534,69 @@ jobs:
               print("Missing SALESFORCE_LOGIN secret")
               exit(1)
           
-          # Parse SALESFORCE_LOGIN JSON
           try:
-              if login_data.startswith('{'):
-                  login_json = json.loads(login_data)
-                  username = login_json.get('username')
-                  password = login_json.get('password')
-                  security_token = login_json.get('security_token', '')
-                  client_id = login_json.get('client_id', '')
-                  client_secret = login_json.get('client_secret', '')
-              else:
-                  print("SALESFORCE_LOGIN must be in JSON format")
-                  exit(1)
+              login_json = json.loads(login_data)
+              username = login_json.get('username')
+              password = login_json.get('password')
+              security_token = login_json.get('security_token', '')
+              client_id = login_json.get('client_id', '')
+              client_secret = login_json.get('client_secret', '')
           except Exception as e:
               print(f"Error parsing SALESFORCE_LOGIN: {str(e)}")
               exit(1)
           
-          if not all([username, password]):
-              print("Missing required credentials: username, password")
+          if not all([username, password, client_id, client_secret]):
+              print("Missing required credentials")
               exit(1)
           
           print(f"Parsed credentials for user: {username}")
           print(f"Client ID present: {'Yes' if client_id else 'No'}")
           print(f"Security token present: {'Yes' if security_token else 'No'}")
           
-          # Try multiple authentication approaches
-          auth_attempts = []
+          # OAuth data
+          auth_data = {
+              'grant_type': 'password',
+              'client_id': client_id,
+              'client_secret': client_secret,
+              'username': username,
+              'password': password + security_token
+          }
           
-          # Approach 1: OAuth2 password grant (if client credentials available)
-          if client_id and client_secret:
-              oauth_urls = [
-                  f"https://{domain}.trailblaze.lightning.force.com/services/oauth2/token",
-                  "https://login.salesforce.com/services/oauth2/token"
-              ]
-              
-              for url in oauth_urls:
-                  auth_attempts.append({
-                      'method': 'OAuth2 Password Grant',
-                      'url': url,
-                      'data': {
-                          'grant_type': 'password',
-                          'client_id': client_id,
-                          'client_secret': client_secret,
-                          'username': username,
-                          'password': password + security_token
-                      },
-                      'headers': {'Content-Type': 'application/x-www-form-urlencoded'}
-                  })
+          headers = {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'Accept': 'application/json'
+          }
           
-          # Approach 2: Simple session login (works for many orgs)
-          session_urls = [
-              f"https://{domain}.trailblaze.lightning.force.com",
-              f"https://{domain}.my.salesforce.com",
-              "https://login.salesforce.com"
+          # Try different URLs with proper redirect handling
+          auth_urls = [
+              f"https://{domain}.trailblaze.lightning.force.com/services/oauth2/token",
+              "https://login.salesforce.com/services/oauth2/token",
+              "https://test.salesforce.com/services/oauth2/token"
           ]
           
-          for base_url in session_urls:
-              auth_attempts.append({
-                  'method': 'Session Login',
-                  'url': f"{base_url}/services/oauth2/token",
-                  'data': {
-                      'grant_type': 'password',
-                      'username': username,
-                      'password': password + security_token,
-                      'client_id': '3MVG9CEn_O3jvv0wLVhN8kbVZElw.0gJrFwK6Kns'
-                  },
-                  'headers': {'Content-Type': 'application/x-www-form-urlencoded'}
-              })
-          
-          # Approach 3: Direct login attempt (for testing)
-          auth_attempts.append({
-              'method': 'Direct Login Test',
-              'url': f"https://{domain}.trailblaze.lightning.force.com/services/oauth2/token",
-              'data': {
-                  'grant_type': 'password',
-                  'username': username,
-                  'password': password + security_token
-              },
-              'headers': {'Content-Type': 'application/x-www-form-urlencoded'}
-          })
-          
-          # Try each authentication method
-          auth_success = False
-          for attempt in auth_attempts:
+          for auth_url in auth_urls:
               try:
-                  print(f"Trying {attempt['method']}: {attempt['url']}")
+                  print(f"Trying OAuth with redirect handling: {auth_url}")
                   
-                  response = requests.post(
-                      attempt['url'], 
-                      data=attempt['data'], 
-                      headers=attempt['headers'], 
-                      timeout=30
-                  )
+                  # Make initial request with redirects disabled
+                  response = session.post(auth_url, data=auth_data, headers=headers, timeout=30)
+                  
+                  # Handle redirects manually while maintaining POST method
+                  redirect_count = 0
+                  max_redirects = 3
+                  
+                  while response.status_code in [301, 302, 303, 307, 308] and redirect_count < max_redirects:
+                      redirect_count += 1
+                      redirect_url = response.headers.get('Location')
+                      
+                      if not redirect_url:
+                          print(f"Redirect without Location header")
+                          break
+                      
+                      print(f"Following redirect #{redirect_count} to: {redirect_url}")
+                      
+                      # Make POST request to redirect URL (maintaining method)
+                      response = session.post(redirect_url, data=auth_data, headers=headers, timeout=30)
                   
                   if response.status_code == 200:
                       try:
@@ -621,64 +606,53 @@ jobs:
                           
                           if access_token and instance_url:
                               print(f"Successfully authenticated with Salesforce!")
-                              print(f"Method: {attempt['method']}")
+                              print(f"Final URL: {response.url}")
                               print(f"Instance URL: {instance_url}")
                               
-                              # Save auth info for next step
+                              # Save auth info
                               auth_info = {
                                   "access_token": access_token,
                                   "instance_url": instance_url,
-                                  "auth_method": attempt['method'],
-                                  "auth_url": attempt['url']
+                                  "auth_method": "OAuth2 with Fixed Redirects",
+                                  "auth_url": auth_url
                               }
                               
                               with open("sf_auth.json", "w") as f:
                                   json.dump(auth_info, f)
                               
-                              # Set outputs
                               with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
                                   f.write(f"auth_success=true\n")
                                   f.write(f"instance_url={instance_url}\n")
                               
-                              auth_success = True
-                              break
+                              print("Authentication successful!")
+                              exit(0)
                           else:
-                              print(f"Missing access_token or instance_url in response")
+                              print("Missing access_token or instance_url in response")
                               
                       except json.JSONDecodeError:
                           print(f"Invalid JSON response: {response.text[:200]}")
                           
                   else:
                       print(f"Failed with status {response.status_code}")
+                      print(f"Response headers: {dict(response.headers)}")
+                      
                       try:
                           error_data = response.json()
                           print(f"Error: {error_data.get('error', 'Unknown')}")
                           print(f"Description: {error_data.get('error_description', 'No description')}")
                       except:
-                          print(f"Response: {response.text[:200]}")
+                          print(f"Response text: {response.text[:300]}")
                       
               except Exception as e:
-                  print(f"Exception with {attempt['method']}: {str(e)[:100]}")
+                  print(f"Exception with {auth_url}: {str(e)}")
                   continue
           
-          if not auth_success:
-              print("\nAll authentication attempts failed")
-              print("\nPossible Solutions:")
-              print("1. Verify your Trailhead playground credentials")
-              print("2. Check if your playground is active (not expired)")
-              print("3. Reset your security token in Setup -> Reset Security Token")
-              print("4. Try logging into Salesforce manually first")
-              print("5. Check if your Connected App is properly configured")
-              
-              # Debug info
-              print(f"\nDebug Info:")
-              print(f"Domain: {domain}")
-              print(f"Username: {username}")
-              print(f"Security token length: {len(security_token) if security_token else 0}")
-              
-              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                  f.write(f"auth_success=false\n")
-              exit(1)
+          print("\nAll authentication attempts failed")
+          print("Issue may be with Trailhead playground OAuth support")
+          
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f"auth_success=false\n")
+          exit(1)
           EOF
 
       - name: Import Data to Salesforce
