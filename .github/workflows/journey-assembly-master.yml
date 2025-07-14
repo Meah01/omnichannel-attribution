@@ -498,7 +498,7 @@ jobs:
               f.write(f"touchpoints_created={len(touchpoints)}\n")
           EOF
 
-- name: Authenticate with Salesforce
+      - name: Authenticate with Salesforce
         id: sf-auth
         env:
           SALESFORCE_LOGIN: ${{ secrets.SALESFORCE_LOGIN }}
