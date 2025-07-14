@@ -1,4 +1,3 @@
-# .github/workflows/journey-assembly-master.yml
 name: Journey Assembly Master Orchestration
 
 on:
