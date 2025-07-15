@@ -508,23 +508,11 @@ jobs:
           import requests
           import json
           import os
-          from requests.adapters import HTTPAdapter
-          from urllib3.util.retry import Retry
           
           print("Authenticating with Salesforce using fixed redirect handling...")
           
-          # Configure session with proper redirect handling
+          # Configure session for manual redirect handling
           session = requests.Session()
-          
-          # Custom adapter to maintain POST method on redirects
-          class PostRedirectAdapter(HTTPAdapter):
-              def send(self, request, **kwargs):
-                  # Disable automatic redirects - we'll handle them manually
-                  kwargs['allow_redirects'] = False
-                  return super().send(request, **kwargs)
-          
-          session.mount('http://', PostRedirectAdapter())
-          session.mount('https://', PostRedirectAdapter())
           
           # Get credentials
           login_data = os.getenv('SALESFORCE_LOGIN', '').strip()
@@ -579,7 +567,7 @@ jobs:
                   print(f"Trying OAuth with redirect handling: {auth_url}")
                   
                   # Make initial request with redirects disabled
-                  response = session.post(auth_url, data=auth_data, headers=headers, timeout=30)
+                  response = requests.post(auth_url, data=auth_data, headers=headers, allow_redirects=False, timeout=30)
                   
                   # Handle redirects manually while maintaining POST method
                   redirect_count = 0
@@ -595,8 +583,8 @@ jobs:
                       
                       print(f"Following redirect #{redirect_count} to: {redirect_url}")
                       
-                      # Make POST request to redirect URL (maintaining method)
-                      response = session.post(redirect_url, data=auth_data, headers=headers, timeout=30)
+                      # Use session.request() to maintain POST method on redirect
+                      response = session.request('POST', redirect_url, data=auth_data, headers=headers, timeout=30)
                   
                   if response.status_code == 200:
                       try:
