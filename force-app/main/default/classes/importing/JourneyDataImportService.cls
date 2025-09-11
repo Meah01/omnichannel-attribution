@@ -1,22 +1,15 @@
 /**
- * @description REST API endpoint for importing customer journey data from synthetic generators
- * @author System Generated - Omnichannel Attribution Platform
- * @version 2.0
+ * @description Clean REST API endpoint for importing customer journey data
+ * @author Omnichannel Attribution Platform
+ * @version 3.0 - Simplified for actual deployment
  * 
- * This service receives JSON data from the Journey Assembler API and imports it into
- * Salesforce custom objects with upsert logic and version tracking.
- * 
- * Endpoint: /services/apexrest/attribution/import/*
- * 
- * Usage:
- * POST /services/apexrest/attribution/import/journeys
- * Body: JSON from Journey Assembler API (salesforce_ready_data format)
+ * Endpoint: /services/apexrest/attribution/import/journeys
  */
 
 @RestResource(urlMapping='/attribution/import/*')
 global class JourneyDataImportService {
     
-    // Response wrapper class
+    // Simple response wrapper
     global class ImportResponse {
         public Boolean success;
         public String message;
@@ -24,8 +17,6 @@ global class JourneyDataImportService {
         public Integer successCount;
         public Integer errorCount;
         public List<String> errors;
-        public String batchId;
-        public DateTime processing_timestamp;
         
         public ImportResponse() {
             this.success = false;
@@ -33,57 +24,44 @@ global class JourneyDataImportService {
             this.successCount = 0;
             this.errorCount = 0;
             this.errors = new List<String>();
-            this.processing_timestamp = System.now();
         }
     }
     
-    // Journey assembler response wrapper matching actual output
-    global class AssemblerResponse {
-        public String status;
-        public Integer processed_journeys;
-        public List<SalesforceJourneyWrapper> salesforce_ready_data;
+    // Simple data structures matching your actual fields
+    global class JourneyData {
+        public String journeyId;
+        public String customerId;
+        public String customerType;
+        public String startDate;
+        public String endDate;
+        public Boolean converted;
+        public Decimal conversionValue;
+        public Integer totalTouchpoints;
+        public Decimal confidenceScore;
+        public String confidenceLevel;
     }
     
-    global class SalesforceJourneyWrapper {
-        public CustomerJourneyRecord Customer_Journey__c;
-        public List<TouchpointRecord> Touchpoints;
+    global class TouchpointData {
+        public String touchpointId;
+        public String journeyId;
+        public String channel;
+        public String timestamp;
+        public String campaign;
     }
     
-    global class CustomerJourneyRecord {
-        public String Name;
-        public String Customer_ID__c;
-        public String Journey_Start_Date__c;
-        public String Journey_End_Date__c;
-        public Integer Total_Touchpoints__c;
-        public Boolean Converted__c;
-        public Decimal Conversion_Value__c;
-        public Integer Journey_Duration_Days__c;
-        public String Customer_Type__c;
-        public Decimal Confidence_Score__c;
-        public String Channel_Sequence__c;
-        public String Synergistic_Patterns__c;
-    }
-    
-    global class TouchpointRecord {
-        public String Name;
-        public String Channel__c;
-        public String Touchpoint_Timestamp__c;
-        public String Campaign_ID__c;
-        public String Device_Type__c;
-        public String Stage__c;
-        public Decimal Conversion_Value__c;
+    global class ImportData {
+        public List<JourneyData> journeys;
+        public List<TouchpointData> touchpoints;
     }
     
     /**
-     * @description Import customer journeys and touchpoints with upsert logic
-     * @return ImportResponse with processing results
+     * @description Import journey data with upsert logic
      */
     @HttpPost
     global static ImportResponse importJourneyData() {
         ImportResponse response = new ImportResponse();
         
         try {
-            // Get request body
             RestRequest request = RestContext.request;
             String requestBody = request.requestBody.toString();
             
@@ -92,317 +70,350 @@ global class JourneyDataImportService {
                 return response;
             }
             
-            // Parse JSON data from assembler format
-            AssemblerResponse assemblerData;
-            try {
-                assemblerData = (AssemblerResponse) JSON.deserialize(requestBody, AssemblerResponse.class);
-            } catch (Exception e) {
-                response.message = 'Invalid JSON format: ' + e.getMessage();
-                response.errors.add('JSON parsing error: ' + e.getMessage());
+            // Parse the JSON data
+            ImportData data = parseImportData(requestBody);
+            
+            if (data.journeys == null || data.journeys.isEmpty()) {
+                response.message = 'No journey data provided';
                 return response;
             }
             
-            // Validate input data
-            if (assemblerData.salesforce_ready_data == null || assemblerData.salesforce_ready_data.isEmpty()) {
-                response.message = 'No salesforce_ready_data provided';
-                return response;
-            }
-            
-            // Process data with upsert logic
-            response = processBatchedUpsert(assemblerData);
+            // Process the data
+            response = processImportData(data);
             
         } catch (Exception e) {
-            response.message = 'Unexpected error: ' + e.getMessage();
+            response.message = 'Import error: ' + e.getMessage();
             response.errors.add('System error: ' + e.getMessage());
-            System.debug(LoggingLevel.ERROR, 'JourneyDataImportService error: ' + e.getMessage());
-            System.debug(LoggingLevel.ERROR, 'Stack trace: ' + e.getStackTraceString());
+            System.debug(LoggingLevel.ERROR, 'Import error: ' + e.getMessage());
         }
         
         return response;
     }
     
     /**
-     * @description Process import with upsert logic to handle duplicates and version tracking
-     * @param assemblerData The parsed assembler response data
-     * @return ImportResponse with batch processing results
+     * @description Parse JSON data from different possible formats
      */
-    private static ImportResponse processBatchedUpsert(AssemblerResponse assemblerData) {
-        ImportResponse response = new ImportResponse();
+    private static ImportData parseImportData(String jsonData) {
+        ImportData result = new ImportData();
+        result.journeys = new List<JourneyData>();
+        result.touchpoints = new List<TouchpointData>();
         
         try {
-            response.totalProcessed = assemblerData.salesforce_ready_data.size();
+            // Try to parse as generic JSON object
+            Map<String, Object> jsonMap = (Map<String, Object>) JSON.deserializeUntyped(jsonData);
             
-            // Convert assembler data to Salesforce objects
-            List<Customer_Journey__c> journeysToUpsert = new List<Customer_Journey__c>();
-            List<Touchpoint__c> touchpointsToUpsert = new List<Touchpoint__c>();
-            
-            // Extract Journey IDs from the assembler data
-            Map<String, String> journeyNameToIdMap = new Map<String, String>();
-            
-            for (SalesforceJourneyWrapper journeyWrapper : assemblerData.salesforce_ready_data) {
-                Customer_Journey__c journey = convertToJourneyObject(journeyWrapper.Customer_Journey__c);
-                if (journey != null) {
-                    // Extract Journey ID from Name field (format: "Journey {journey_id}")
-                    String journeyId = extractJourneyIdFromName(journeyWrapper.Customer_Journey__c.Name);
-                    if (String.isNotBlank(journeyId)) {
-                        journey.Journey_ID__c = journeyId;
-                        journeyNameToIdMap.put(journeyWrapper.Customer_Journey__c.Name, journeyId);
-                        journeysToUpsert.add(journey);
+            // Handle salesforce_ready_data format (from GitHub Actions)
+            if (jsonMap.containsKey('salesforce_ready_data')) {
+                List<Object> readyData = (List<Object>) jsonMap.get('salesforce_ready_data');
+                
+                for (Object journeyObj : readyData) {
+                    Map<String, Object> journeyWrapper = (Map<String, Object>) journeyObj;
+                    
+                    // Extract journey data
+                    if (journeyWrapper.containsKey('Customer_Journey__c')) {
+                        Map<String, Object> journeyMap = (Map<String, Object>) journeyWrapper.get('Customer_Journey__c');
+                        JourneyData journey = extractJourneyFromMap(journeyMap);
+                        if (journey != null) {
+                            result.journeys.add(journey);
+                        }
+                    }
+                    
+                    // Extract touchpoints
+                    if (journeyWrapper.containsKey('Touchpoints')) {
+                        List<Object> touchpointsList = (List<Object>) journeyWrapper.get('Touchpoints');
+                        for (Object tpObj : touchpointsList) {
+                            Map<String, Object> tpMap = (Map<String, Object>) tpObj;
+                            TouchpointData tp = extractTouchpointFromMap(tpMap);
+                            if (tp != null) {
+                                result.touchpoints.add(tp);
+                            }
+                        }
+                    }
+                }
+            }
+            // Handle simple journeys array format
+            else if (jsonMap.containsKey('journeys')) {
+                List<Object> journeysList = (List<Object>) jsonMap.get('journeys');
+                for (Object journeyObj : journeysList) {
+                    Map<String, Object> journeyMap = (Map<String, Object>) journeyObj;
+                    JourneyData journey = extractJourneyFromMap(journeyMap);
+                    if (journey != null) {
+                        result.journeys.add(journey);
+                    }
+                }
+                
+                if (jsonMap.containsKey('touchpoints')) {
+                    List<Object> touchpointsList = (List<Object>) jsonMap.get('touchpoints');
+                    for (Object tpObj : touchpointsList) {
+                        Map<String, Object> tpMap = (Map<String, Object>) tpObj;
+                        TouchpointData tp = extractTouchpointFromMap(tpMap);
+                        if (tp != null) {
+                            result.touchpoints.add(tp);
+                        }
                     }
                 }
             }
             
-            // Upsert journeys using Journey_ID__c as external ID
-            List<Database.UpsertResult> journeyResults = upsertJourneysBatch(journeysToUpsert);
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, 'Parse error: ' + e.getMessage());
+        }
+        
+        return result;
+    }
+    
+    /**
+     * @description Extract journey data from map with flexible field names
+     */
+    private static JourneyData extractJourneyFromMap(Map<String, Object> journeyMap) {
+        try {
+            JourneyData journey = new JourneyData();
             
-            // Process journey results and build ID mapping
-            Map<String, Id> journeyIdToSalesforceIdMap = new Map<String, Id>();
-            for (Integer i = 0; i < journeyResults.size(); i++) {
-                Database.UpsertResult result = journeyResults[i];
-                if (result.isSuccess()) {
-                    response.successCount++;
-                    journeyIdToSalesforceIdMap.put(journeysToUpsert[i].Journey_ID__c, result.getId());
-                } else {
-                    response.errorCount++;
-                    String errorMsg = 'Journey ' + journeysToUpsert[i].Journey_ID__c + ': ';
+            // Extract journey ID from Name field or direct field
+            String nameField = (String) journeyMap.get('Name');
+            if (String.isNotBlank(nameField) && nameField.startsWith('Journey ')) {
+                journey.journeyId = nameField.substring(8); // Remove "Journey " prefix
+            } else {
+                journey.journeyId = (String) getFieldValue(journeyMap, new List<String>{'journeyId', 'journey_id', 'Journey_ID__c'});
+            }
+            
+            // Extract other fields with flexible naming
+            journey.customerId = (String) getFieldValue(journeyMap, new List<String>{'customerId', 'customer_id', 'Customer_ID__c'});
+            journey.customerType = (String) getFieldValue(journeyMap, new List<String>{'customerType', 'customer_type', 'Customer_Type__c'});
+            journey.startDate = (String) getFieldValue(journeyMap, new List<String>{'startDate', 'journey_start', 'Journey_Start_Date__c'});
+            journey.endDate = (String) getFieldValue(journeyMap, new List<String>{'endDate', 'journey_end', 'Journey_End_Date__c'});
+            journey.converted = (Boolean) getFieldValue(journeyMap, new List<String>{'converted', 'Converted__c'});
+            journey.conversionValue = (Decimal) getFieldValue(journeyMap, new List<String>{'conversionValue', 'conversion_value', 'Conversion_Value__c'});
+            
+            Object touchpointsObj = getFieldValue(journeyMap, new List<String>{'totalTouchpoints', 'total_touchpoints', 'Total_Touchpoints__c'});
+            if (touchpointsObj != null) {
+                journey.totalTouchpoints = Integer.valueOf(touchpointsObj);
+            }
+            
+            journey.confidenceScore = (Decimal) getFieldValue(journeyMap, new List<String>{'confidenceScore', 'confidence_score', 'Confidence_Score__c'});
+            journey.confidenceLevel = (String) getFieldValue(journeyMap, new List<String>{'confidenceLevel', 'confidence_level', 'Confidence_Level__c'});
+            
+            return journey;
+            
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, 'Journey extraction error: ' + e.getMessage());
+            return null;
+        }
+    }
+    
+    /**
+     * @description Extract touchpoint data from map with flexible field names
+     */
+    private static TouchpointData extractTouchpointFromMap(Map<String, Object> tpMap) {
+        try {
+            TouchpointData tp = new TouchpointData();
+            
+            // Extract touchpoint ID from Name field or direct field
+            String nameField = (String) tpMap.get('Name');
+            if (String.isNotBlank(nameField) && nameField.startsWith('Touchpoint ')) {
+                tp.touchpointId = nameField.substring(11); // Remove "Touchpoint " prefix
+            } else {
+                tp.touchpointId = (String) getFieldValue(tpMap, new List<String>{'touchpointId', 'touchpoint_id', 'Touchpoint_ID__c'});
+            }
+            
+            tp.journeyId = (String) getFieldValue(tpMap, new List<String>{'journeyId', 'journey_id', 'Journey_ID__c'});
+            tp.channel = (String) getFieldValue(tpMap, new List<String>{'channel', 'Channel__c'});
+            tp.timestamp = (String) getFieldValue(tpMap, new List<String>{'timestamp', 'touchpoint_timestamp', 'Touchpoint_Timestamp__c'});
+            tp.campaign = (String) getFieldValue(tpMap, new List<String>{'campaign', 'campaign_id', 'Campaign__c'});
+            
+            return tp;
+            
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, 'Touchpoint extraction error: ' + e.getMessage());
+            return null;
+        }
+    }
+    
+    /**
+     * @description Get field value using multiple possible field names
+     */
+    private static Object getFieldValue(Map<String, Object> dataMap, List<String> possibleNames) {
+        for (String fieldName : possibleNames) {
+            if (dataMap.containsKey(fieldName)) {
+                return dataMap.get(fieldName);
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * @description Process the parsed data and save to Salesforce
+     */
+    private static ImportResponse processImportData(ImportData data) {
+        ImportResponse response = new ImportResponse();
+        response.totalProcessed = data.journeys.size();
+        
+        try {
+            // Convert to Salesforce objects
+            List<Customer_Journey__c> journeysToUpsert = new List<Customer_Journey__c>();
+            
+            for (JourneyData journeyData : data.journeys) {
+                Customer_Journey__c journey = convertToSalesforceJourney(journeyData);
+                if (journey != null) {
+                    journeysToUpsert.add(journey);
+                }
+            }
+            
+            // Upsert journeys
+            if (!journeysToUpsert.isEmpty()) {
+                List<Database.UpsertResult> results = Database.upsert(journeysToUpsert, Customer_Journey__c.Journey_ID__c, false);
+                
+                // Process results
+                Map<String, Id> journeyIdMap = new Map<String, Id>();
+                for (Integer i = 0; i < results.size(); i++) {
+                    Database.UpsertResult result = results[i];
+                    if (result.isSuccess()) {
+                        response.successCount++;
+                        journeyIdMap.put(journeysToUpsert[i].Journey_ID__c, result.getId());
+                    } else {
+                        response.errorCount++;
+                        String errorMsg = 'Journey ' + journeysToUpsert[i].Journey_ID__c + ': ';
+                        for (Database.Error error : result.getErrors()) {
+                            errorMsg += error.getMessage() + '; ';
+                        }
+                        response.errors.add(errorMsg);
+                    }
+                }
+                
+                // Process touchpoints if we have successful journeys
+                if (!journeyIdMap.isEmpty() && data.touchpoints != null && !data.touchpoints.isEmpty()) {
+                    processTouchpoints(data.touchpoints, journeyIdMap, response);
+                }
+            }
+            
+            response.success = (response.errorCount == 0);
+            response.message = response.success ? 
+                'Successfully imported ' + response.successCount + ' journeys' :
+                'Completed with ' + response.errorCount + ' errors out of ' + response.totalProcessed + ' journeys';
+                
+        } catch (Exception e) {
+            response.success = false;
+            response.message = 'Processing error: ' + e.getMessage();
+            response.errors.add('Processing error: ' + e.getMessage());
+        }
+        
+        return response;
+    }
+    
+    /**
+     * @description Convert journey data to Salesforce object
+     */
+    private static Customer_Journey__c convertToSalesforceJourney(JourneyData journeyData) {
+        try {
+            Customer_Journey__c journey = new Customer_Journey__c();
+            
+            journey.Journey_ID__c = journeyData.journeyId;
+            journey.Customer_ID__c = journeyData.customerId;
+            journey.Customer_Type__c = journeyData.customerType;
+            journey.Converted__c = journeyData.converted != null ? journeyData.converted : false;
+            journey.Conversion_Value__c = journeyData.conversionValue;
+            journey.Total_Touchpoints__c = journeyData.totalTouchpoints;
+            journey.Confidence_Score__c = journeyData.confidenceScore;
+            journey.Confidence_Level__c = journeyData.confidenceLevel;
+            journey.Processing_Status__c = 'Completed';
+            
+            // Parse dates
+            if (String.isNotBlank(journeyData.startDate)) {
+                journey.Journey_Start_Date__c = parseDateTime(journeyData.startDate);
+            }
+            if (String.isNotBlank(journeyData.endDate)) {
+                journey.Journey_End_Date__c = parseDateTime(journeyData.endDate);
+            }
+            
+            return journey;
+            
+        } catch (Exception e) {
+            System.debug(LoggingLevel.ERROR, 'Journey conversion error: ' + e.getMessage());
+            return null;
+        }
+    }
+    
+    /**
+     * @description Process touchpoints
+     */
+    private static void processTouchpoints(List<TouchpointData> touchpoints, Map<String, Id> journeyIdMap, ImportResponse response) {
+        List<Touchpoint__c> touchpointsToUpsert = new List<Touchpoint__c>();
+        
+        for (TouchpointData tpData : touchpoints) {
+            Id journeyId = journeyIdMap.get(tpData.journeyId);
+            if (journeyId != null) {
+                Touchpoint__c tp = convertToSalesforceTouchpoint(tpData, journeyId);
+                if (tp != null) {
+                    touchpointsToUpsert.add(tp);
+                }
+            }
+        }
+        
+        if (!touchpointsToUpsert.isEmpty()) {
+            List<Database.UpsertResult> tpResults = Database.upsert(touchpointsToUpsert, Touchpoint__c.Touchpoint_ID__c, false);
+            
+            for (Integer i = 0; i < tpResults.size(); i++) {
+                Database.UpsertResult result = tpResults[i];
+                if (!result.isSuccess()) {
+                    String errorMsg = 'Touchpoint ' + touchpointsToUpsert[i].Touchpoint_ID__c + ': ';
                     for (Database.Error error : result.getErrors()) {
                         errorMsg += error.getMessage() + '; ';
                     }
                     response.errors.add(errorMsg);
                 }
             }
-            
-            // Process touchpoints if we have successful journeys
-            if (!journeyIdToSalesforceIdMap.isEmpty()) {
-                for (SalesforceJourneyWrapper journeyWrapper : assemblerData.salesforce_ready_data) {
-                    String journeyId = journeyNameToIdMap.get(journeyWrapper.Customer_Journey__c.Name);
-                    Id salesforceJourneyId = journeyIdToSalesforceIdMap.get(journeyId);
-                    
-                    if (salesforceJourneyId != null && journeyWrapper.Touchpoints != null) {
-                        for (TouchpointRecord touchpointData : journeyWrapper.Touchpoints) {
-                            Touchpoint__c touchpoint = convertToTouchpointObject(touchpointData, salesforceJourneyId, journeyId);
-                            if (touchpoint != null) {
-                                touchpointsToUpsert.add(touchpoint);
-                            }
-                        }
-                    }
-                }
-                
-                // Upsert touchpoints using Touchpoint_ID__c as external ID
-                if (!touchpointsToUpsert.isEmpty()) {
-                    List<Database.UpsertResult> touchpointResults = upsertTouchpointsBatch(touchpointsToUpsert);
-                    
-                    // Process touchpoint results
-                    for (Integer i = 0; i < touchpointResults.size(); i++) {
-                        Database.UpsertResult result = touchpointResults[i];
-                        if (!result.isSuccess()) {
-                            String errorMsg = 'Touchpoint ' + touchpointsToUpsert[i].Touchpoint_ID__c + ': ';
-                            for (Database.Error error : result.getErrors()) {
-                                errorMsg += error.getMessage() + '; ';
-                            }
-                            response.errors.add(errorMsg);
-                        }
-                    }
-                }
-            }
-            
-            // Set success status
-            response.success = (response.errorCount == 0);
-            response.message = response.success ? 
-                'Successfully processed ' + response.successCount + ' journeys' :
-                'Completed with ' + response.errorCount + ' errors out of ' + response.totalProcessed + ' journeys';
-                
-        } catch (Exception e) {
-            response.success = false;
-            response.message = 'Batch processing error: ' + e.getMessage();
-            response.errors.add('Batch error: ' + e.getMessage());
-        }
-        
-        return response;
-    }
-    
-    /**
-     * @description Extract journey ID from Name field format "Journey {journey_id}"
-     * @param journeyName The journey name from assembler
-     * @return Extracted journey ID or null
-     */
-    private static String extractJourneyIdFromName(String journeyName) {
-        if (String.isBlank(journeyName)) {
-            return null;
-        }
-        
-        // Expected format: "Journey journey_a1b2c3d4e5f6"
-        if (journeyName.startsWith('Journey ')) {
-            return journeyName.substring(8); // Remove "Journey " prefix
-        }
-        
-        return journeyName; // Fallback to full name
-    }
-    
-    /**
-     * @description Convert assembler journey data to Salesforce Customer_Journey__c object
-     * @param journeyData The journey data from assembler
-     * @return Customer_Journey__c object or null if conversion fails
-     */
-    private static Customer_Journey__c convertToJourneyObject(CustomerJourneyRecord journeyData) {
-        try {
-            Customer_Journey__c journey = new Customer_Journey__c();
-            
-            // Core fields
-            journey.Name = journeyData.Name;
-            journey.Customer_ID__c = journeyData.Customer_ID__c;
-            journey.Customer_Type__c = journeyData.Customer_Type__c;
-            
-            // Date fields with proper parsing
-            if (String.isNotBlank(journeyData.Journey_Start_Date__c)) {
-                journey.Journey_Start_Date__c = DateTime.valueOf(journeyData.Journey_Start_Date__c.replace('T', ' '));
-            }
-            if (String.isNotBlank(journeyData.Journey_End_Date__c)) {
-                journey.Journey_End_Date__c = DateTime.valueOf(journeyData.Journey_End_Date__c.replace('T', ' '));
-            }
-            
-            // Conversion data
-            journey.Converted__c = journeyData.Converted__c != null ? journeyData.Converted__c : false;
-            journey.Conversion_Value__c = journeyData.Conversion_Value__c;
-            
-            // Journey metrics
-            journey.Total_Touchpoints__c = journeyData.Total_Touchpoints__c;
-            journey.Journey_Duration_Days__c = journeyData.Journey_Duration_Days__c;
-            
-            // Data quality metrics
-            journey.Confidence_Score__c = journeyData.Confidence_Score__c;
-            
-            // Attribution ready fields
-            journey.Channel_Sequence__c = journeyData.Channel_Sequence__c;
-            journey.Synergistic_Patterns__c = journeyData.Synergistic_Patterns__c;
-            
-            // Version tracking - update timestamp for tracking updates
-            journey.Last_Updated__c = System.now();
-            
-            // Processing status
-            journey.Processing_Status__c = 'Completed';
-            
-            return journey;
-            
-        } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, 'Error converting journey data: ' + e.getMessage());
-            return null;
         }
     }
     
     /**
-     * @description Convert assembler touchpoint data to Salesforce Touchpoint__c object
-     * @param touchpointData The touchpoint data from assembler
-     * @param journeyId The Salesforce ID of the related Customer_Journey__c
-     * @param journeyExternalId The external journey ID for touchpoint ID generation
-     * @return Touchpoint__c object or null if conversion fails
+     * @description Convert touchpoint data to Salesforce object
      */
-    private static Touchpoint__c convertToTouchpointObject(TouchpointRecord touchpointData, Id journeyId, String journeyExternalId) {
+    private static Touchpoint__c convertToSalesforceTouchpoint(TouchpointData tpData, Id journeyId) {
         try {
             Touchpoint__c touchpoint = new Touchpoint__c();
             
-            // Generate unique Touchpoint ID from name (format: "Touchpoint {tp.touchpoint_id}")
-            String touchpointId = touchpointData.Name;
-            if (touchpointData.Name.startsWith('Touchpoint ')) {
-                touchpointId = touchpointData.Name.substring(11); // Remove "Touchpoint " prefix
-            }
-            
-            // Required fields
-            touchpoint.Touchpoint_ID__c = touchpointId;
+            touchpoint.Touchpoint_ID__c = tpData.touchpointId;
             touchpoint.Customer_Journey__c = journeyId;
-            touchpoint.Channel__c = touchpointData.Channel__c;
+            touchpoint.Channel__c = tpData.channel;
+            touchpoint.Campaign__c = tpData.campaign;
             
-            // Parse timestamp
-            if (String.isNotBlank(touchpointData.Touchpoint_Timestamp__c)) {
-                touchpoint.Touchpoint_Timestamp__c = DateTime.valueOf(touchpointData.Touchpoint_Timestamp__c.replace('T', ' '));
+            if (String.isNotBlank(tpData.timestamp)) {
+                touchpoint.Touchpoint_Timestamp__c = parseDateTime(tpData.timestamp);
             }
-            
-            // Optional fields
-            touchpoint.Campaign_ID__c = touchpointData.Campaign_ID__c;
-            touchpoint.Device_Type__c = touchpointData.Device_Type__c;
-            touchpoint.Stage__c = touchpointData.Stage__c;
-            touchpoint.Conversion_Value__c = touchpointData.Conversion_Value__c;
             
             return touchpoint;
             
         } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, 'Error converting touchpoint data: ' + e.getMessage());
+            System.debug(LoggingLevel.ERROR, 'Touchpoint conversion error: ' + e.getMessage());
             return null;
         }
     }
     
     /**
-     * @description Upsert customer journeys using Journey_ID__c as external ID
-     * @param journeys List of Customer_Journey__c objects to upsert
-     * @return List of Database.UpsertResult
+     * @description Parse datetime string with flexible formats
      */
-    private static List<Database.UpsertResult> upsertJourneysBatch(List<Customer_Journey__c> journeys) {
-        List<Database.UpsertResult> results = new List<Database.UpsertResult>();
-        
-        if (journeys.isEmpty()) {
-            return results;
-        }
-        
+    private static DateTime parseDateTime(String dateTimeStr) {
         try {
-            // Use Database.upsert with Journey_ID__c as external ID field
-            Schema.SObjectField externalIdField = Customer_Journey__c.Journey_ID__c;
-            results = Database.upsert(journeys, externalIdField, false);
+            if (String.isBlank(dateTimeStr)) {
+                return null;
+            }
+            
+            // Handle different formats
+            String cleanStr = dateTimeStr.replace('T', ' ').replace('Z', '');
+            return DateTime.valueOf(cleanStr);
             
         } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, 'Error upserting journeys batch: ' + e.getMessage());
-            // Create error results for all records
-            for (Customer_Journey__c journey : journeys) {
-                Database.UpsertResult errorResult = (Database.UpsertResult) JSON.deserialize(
-                    '{"success":false,"errors":[{"message":"' + e.getMessage() + '"}]}', 
-                    Database.UpsertResult.class
-                );
-                results.add(errorResult);
-            }
+            System.debug(LoggingLevel.ERROR, 'DateTime parse error: ' + e.getMessage() + ' for: ' + dateTimeStr);
+            return null;
         }
-        
-        return results;
     }
     
-    /**
-     * @description Upsert touchpoints using Touchpoint_ID__c as external ID
-     * @param touchpoints List of Touchpoint__c objects to upsert
-     * @return List of Database.UpsertResult
-     */
-    private static List<Database.UpsertResult> upsertTouchpointsBatch(List<Touchpoint__c> touchpoints) {
-        List<Database.UpsertResult> results = new List<Database.UpsertResult>();
-        
-        if (touchpoints.isEmpty()) {
-            return results;
-        }
-        
-        try {
-            // Use Database.upsert with Touchpoint_ID__c as external ID field
-            Schema.SObjectField externalIdField = Touchpoint__c.Touchpoint_ID__c;
-            results = Database.upsert(touchpoints, externalIdField, false);
-            
-        } catch (Exception e) {
-            System.debug(LoggingLevel.ERROR, 'Error upserting touchpoints batch: ' + e.getMessage());
-            // Create error results for all records
-            for (Touchpoint__c touchpoint : touchpoints) {
-                Database.UpsertResult errorResult = (Database.UpsertResult) JSON.deserialize(
-                    '{"success":false,"errors":[{"message":"' + e.getMessage() + '"}]}', 
-                    Database.UpsertResult.class
-                );
-                results.add(errorResult);
-            }
-        }
-        
-        return results;
-    }
-    
-    // Status response wrapper class
+    // Status response wrapper
     global class StatusResponse {
         public Integer total_journeys;
         public Integer total_touchpoints;
         public Integer b2c_journeys;
         public Integer b2b_journeys;
         public Integer converted_journeys;
-        public Integer updated_journeys;
         public DateTime last_import;
         public String status;
         public String error_message;
@@ -413,22 +424,19 @@ global class JourneyDataImportService {
             this.b2c_journeys = 0;
             this.b2b_journeys = 0;
             this.converted_journeys = 0;
-            this.updated_journeys = 0;
             this.last_import = System.now();
             this.status = 'active';
         }
     }
     
     /**
-     * @description Get import status and statistics with version tracking
-     * @return StatusResponse with import statistics
+     * @description Get import status
      */
     @HttpGet
     global static StatusResponse getImportStatus() {
         StatusResponse response = new StatusResponse();
         
         try {
-            // Get statistics using proper aggregate query syntax
             List<AggregateResult> totalJourneys = [SELECT COUNT(Id) totalCount FROM Customer_Journey__c WHERE CreatedDate = TODAY];
             response.total_journeys = totalJourneys.size() > 0 ? (Integer)totalJourneys[0].get('totalCount') : 0;
             
@@ -444,17 +452,12 @@ global class JourneyDataImportService {
             List<AggregateResult> convertedJourneys = [SELECT COUNT(Id) totalCount FROM Customer_Journey__c WHERE Converted__c = true AND CreatedDate = TODAY];
             response.converted_journeys = convertedJourneys.size() > 0 ? (Integer)convertedJourneys[0].get('totalCount') : 0;
             
-            // Track updated journeys (where Last_Updated__c != CreatedDate)
-            List<AggregateResult> updatedJourneys = [SELECT COUNT(Id) totalCount FROM Customer_Journey__c WHERE Last_Updated__c = TODAY AND CreatedDate != TODAY];
-            response.updated_journeys = updatedJourneys.size() > 0 ? (Integer)updatedJourneys[0].get('totalCount') : 0;
-            
             response.last_import = System.now();
             response.status = 'active';
             
         } catch (Exception e) {
             response.error_message = e.getMessage();
             response.status = 'error';
-            System.debug(LoggingLevel.ERROR, 'Error getting import status: ' + e.getMessage());
         }
         
         return response;
