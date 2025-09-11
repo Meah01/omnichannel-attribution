@@ -311,6 +311,9 @@ jobs:
           import requests
           import json
           import os
+          import uuid
+          from datetime import datetime, timedelta
+          import random
           
           assembler_url = "${{ env.JOURNEY_ASSEMBLER_URL }}"
           
@@ -320,39 +323,107 @@ jobs:
           endpoint = f"{assembler_url}/webhooks/n8n-trigger"
           
           try:
-              # For portfolio demonstration - simulate the assembly process
+              # For portfolio demonstration - simulate the assembly process matching assembler output format
               print(f"POST {endpoint}")
               
-              # Simulate successful assembly
-              journeys_assembled = 1250  # Simulated count
+              # Generate realistic journey data in assembler format
+              journeys_count = 100  # Limit for demo
               
-              print(f"Successfully assembled {journeys_assembled} customer journeys")
+              salesforce_ready_data = []
               
-              # Create assembly results
-              assembly_results = {
-                  "journeys_assembled": journeys_assembled,
-                  "status": "success",
-                  "processing_time": "45 seconds",
-                  "confidence_distribution": {
-                      "high": int(journeys_assembled * 0.35),
-                      "medium": int(journeys_assembled * 0.45), 
-                      "low": int(journeys_assembled * 0.15),
-                      "unmatched": int(journeys_assembled * 0.05)
+              for i in range(journeys_count):
+                  # Generate UUID-based journey ID matching assembler format
+                  journey_uuid = uuid.uuid4().hex[:12]
+                  journey_id = f"journey_{journey_uuid}"
+                  
+                  # Generate customer ID with UUID
+                  customer_uuid = uuid.uuid4().hex[:12]
+                  customer_id = f"customer_{customer_uuid}"
+                  
+                  # Realistic journey parameters
+                  customer_type = "B2B" if i % 4 == 0 else "B2C"
+                  converted = i % 6 == 0
+                  
+                  journey_start = datetime.now() - timedelta(days=random.randint(1, 30))
+                  journey_duration = random.randint(1, 14) if customer_type == "B2C" else random.randint(3, 45)
+                  journey_end = journey_start + timedelta(days=journey_duration)
+                  
+                  num_touchpoints = random.randint(2, 6) if customer_type == "B2C" else random.randint(4, 12)
+                  
+                  # Generate channel sequence
+                  channels = [
+                      "google_ads", "facebook_ads", "linkedin_ads", "email_marketing",
+                      "content_website_seo", "app_store", "events", "organic_social"
+                  ]
+                  
+                  selected_channels = random.sample(channels, min(num_touchpoints, len(channels)))
+                  
+                  # Create journey wrapper matching assembler format
+                  journey_wrapper = {
+                      "Customer_Journey__c": {
+                          "Name": f"Journey {journey_id}",
+                          "Customer_ID__c": customer_id,
+                          "Journey_Start_Date__c": journey_start.strftime('%Y-%m-%dT%H:%M:%SZ'),
+                          "Journey_End_Date__c": journey_end.strftime('%Y-%m-%dT%H:%M:%SZ'),
+                          "Total_Touchpoints__c": num_touchpoints,
+                          "Converted__c": converted,
+                          "Conversion_Value__c": round(random.uniform(50, 500), 2) if converted else 0.0,
+                          "Journey_Duration_Days__c": journey_duration,
+                          "Customer_Type__c": customer_type,
+                          "Confidence_Score__c": round(random.uniform(0.6, 0.95), 2),
+                          "Channel_Sequence__c": ", ".join(selected_channels),
+                          "Synergistic_Patterns__c": "google_ads -> content_website_seo" if "google_ads" in selected_channels and "content_website_seo" in selected_channels else ""
+                      },
+                      "Touchpoints": []
                   }
+                  
+                  # Generate touchpoints
+                  for tp_idx in range(num_touchpoints):
+                      tp_time = journey_start + timedelta(
+                          seconds=int((journey_end - journey_start).total_seconds() * tp_idx / (num_touchpoints - 1))
+                      )
+                      
+                      # Generate UUID-based touchpoint ID
+                      tp_uuid = uuid.uuid4().hex[:8]
+                      touchpoint_id = f"tp_{tp_uuid}"
+                      
+                      touchpoint = {
+                          "Name": f"Touchpoint {touchpoint_id}",
+                          "Channel__c": selected_channels[tp_idx % len(selected_channels)],
+                          "Touchpoint_Timestamp__c": tp_time.strftime('%Y-%m-%dT%H:%M:%SZ'),
+                          "Campaign_ID__c": f"campaign_{random.randint(1000, 9999)}",
+                          "Device_Type__c": random.choice(["Mobile", "Desktop", "Tablet"]),
+                          "Stage__c": random.choice(["Awareness", "Interest", "Consideration", "Conversion"]),
+                          "Conversion_Value__c": round(random.uniform(0, 100), 2) if random.random() > 0.8 else 0.0
+                      }
+                      
+                      journey_wrapper["Touchpoints"].append(touchpoint)
+                  
+                  salesforce_ready_data.append(journey_wrapper)
+              
+              # Create assembly results matching assembler response format
+              assembly_response = {
+                  "status": "success",
+                  "processed_journeys": len(salesforce_ready_data),
+                  "salesforce_ready_data": salesforce_ready_data
               }
+              
+              print(f"Successfully assembled {len(salesforce_ready_data)} customer journeys")
               
               # Save assembly results
               with open("journey_assembly_results.json", "w") as f:
-                  json.dump(assembly_results, f, indent=2)
+                  json.dump(assembly_response, f, indent=2)
               
               print("Journey Assembly Results:")
-              print(json.dumps(assembly_results, indent=2))
+              print(f"   Journeys: {len(salesforce_ready_data)}")
+              print(f"   Format: Customer Journey Assembler compatible")
+              print(f"   IDs: UUID-based (journey_abc123, customer_def456)")
               
               # Set GitHub outputs
               with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                  f.write(f"journeys_count={journeys_assembled}\n")
+                  f.write(f"journeys_count={len(salesforce_ready_data)}\n")
                   f.write(f"status=success\n")
-                  f.write(f"results={json.dumps(assembly_results)}\n")
+                  f.write(f"results={json.dumps(assembly_response)}\n")
                   
           except Exception as e:
               print(f"Error during journey assembly: {str(e)}")
@@ -393,110 +464,6 @@ jobs:
       - name: Install Dependencies
         run: |
           pip install requests python-dateutil
-
-      - name: Create Journey Data for Salesforce
-        id: create-data
-        run: |
-          python3 << 'EOF'
-          import json
-          import os
-          from datetime import datetime, timedelta
-          import random
-          
-          print("Creating journey data for Salesforce import...")
-          
-          # Load assembly results
-          try:
-              with open("journey_assembly_results.json", 'r') as f:
-                  assembly_results = json.load(f)
-              journeys_count = min(assembly_results.get('journeys_assembled', 50), 100)  # Limit for demo
-          except:
-              journeys_count = 50  # Fallback
-          
-          # Create realistic journey data matching your project's Dutch market focus
-          channels = [
-              "Google_Ads_Awareness", "Google_Ads_Interest", "Google_Ads_Conversion",
-              "Facebook_Ads_Awareness", "Facebook_Ads_Interest", "Facebook_Ads_Conversion", 
-              "LinkedIn_Ads_Awareness", "LinkedIn_Ads_Interest", "LinkedIn_Ads_Consideration",
-              "Email_Marketing_Interest", "Email_Marketing_Consideration", "Email_Marketing_Retention",
-              "Content_Website_SEO_Interest", "Content_Website_SEO_Consideration", "Content_Website_SEO_Retention",
-              "App_Store_Optimization_Consideration", "App_Store_Optimization_Conversion",
-              "Events_Awareness", "Referral_Consideration", "Referral_Conversion"
-          ]
-          
-          customer_journeys = []
-          touchpoints = []
-          
-          for i in range(journeys_count):
-              # Generate realistic journey data
-              customer_type = "B2B" if i % 4 == 0 else "B2C"  # 25% B2B, 75% B2C
-              converted = i % 6 == 0  # ~17% conversion rate
-              
-              journey_start = datetime.now() - timedelta(days=random.randint(1, 30))
-              journey_duration = random.randint(1, 14) if customer_type == "B2C" else random.randint(3, 45)
-              journey_end = journey_start + timedelta(days=journey_duration)
-              
-              num_touchpoints = random.randint(2, 6) if customer_type == "B2C" else random.randint(4, 12)
-              
-              journey = {
-                  "customer_id": f"github_customer_{i+1:06d}",
-                  "journey_id": f"github_journey_{i+1:08d}",
-                  "customer_type": customer_type,
-                  "journey_start": journey_start.strftime('%Y-%m-%dT%H:%M:%SZ'),
-                  "journey_end": journey_end.strftime('%Y-%m-%dT%H:%M:%SZ'),
-                  "converted": converted,
-                  "conversion_value": round(random.uniform(50, 500), 2) if converted else 0.0,
-                  "total_touchpoints": num_touchpoints,
-                  "confidence_score": round(random.uniform(0.6, 0.95), 2),
-                  "confidence_level": "High" if random.random() > 0.4 else "Medium"
-              }
-              customer_journeys.append(journey)
-              
-              # Generate touchpoints for this journey
-              touchpoint_times = []
-              for tp_idx in range(num_touchpoints):
-                  tp_time = journey_start + timedelta(
-                      seconds=int((journey_end - journey_start).total_seconds() * tp_idx / (num_touchpoints - 1))
-                  )
-                  touchpoint_times.append(tp_time)
-              
-              for tp_idx, tp_time in enumerate(touchpoint_times):
-                  touchpoint = {
-                      "touchpoint_id": f"github_tp_{i+1:06d}_{tp_idx+1:02d}",
-                      "journey_id": journey["journey_id"],
-                      "customer_id": journey["customer_id"],
-                      "channel": random.choice(channels),
-                      "touchpoint_timestamp": tp_time.strftime('%Y-%m-%dT%H:%M:%SZ'),
-                      "campaign_id": f"campaign_{random.randint(1000, 9999)}",
-                      "device_type": random.choice(["Mobile", "Desktop", "Tablet"]),
-                      "interaction_type": random.choice(["Click", "View", "Open", "Download"])
-                  }
-                  touchpoints.append(touchpoint)
-          
-          # Create final data structure
-          salesforce_data = {
-              "customer_journeys": customer_journeys,
-              "touchpoints": touchpoints,
-              "metadata": {
-                  "generated_date": datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ'),
-                  "assembler_version": "1.0.0",
-                  "total_journeys": len(customer_journeys),
-                  "total_touchpoints": len(touchpoints),
-                  "data_quality_score": "87%"
-              }
-          }
-          
-          # Save data
-          with open("salesforce_import_data.json", "w") as f:
-              json.dump(salesforce_data, f, indent=2)
-          
-          print(f"Created {len(customer_journeys)} journeys with {len(touchpoints)} touchpoints")
-          
-          # Set outputs
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-              f.write(f"journeys_created={len(customer_journeys)}\n")
-              f.write(f"touchpoints_created={len(touchpoints)}\n")
-          EOF
 
       - name: Authenticate with Salesforce
         id: sf-auth
@@ -661,9 +628,12 @@ jobs:
           access_token = auth_info["access_token"]
           instance_url = auth_info["instance_url"]
           
-          # Load journey data
-          with open("salesforce_import_data.json", "r") as f:
-              journey_data = json.load(f)
+          # Load journey data from assembler format
+          with open("journey_assembly_results.json", "r") as f:
+              assembler_response = json.load(f)
+          
+          # Use the assembler response format directly
+          journey_data = assembler_response
           
           # Prepare API call
           import_url = f"{instance_url}/services/apexrest/attribution/import/journeys"
@@ -675,8 +645,9 @@ jobs:
           }
           
           try:
-              print(f"Sending {len(journey_data['customer_journeys'])} journeys to Salesforce...")
+              print(f"Sending {len(journey_data['salesforce_ready_data'])} journeys to Salesforce...")
               print(f"API Endpoint: {import_url}")
+              print(f"Data Format: Customer Journey Assembler format")
               
               response = requests.post(
                   import_url,
@@ -768,6 +739,7 @@ jobs:
                   print(f"   B2C Journeys: {status.get('b2c_journeys', 0)}")
                   print(f"   B2B Journeys: {status.get('b2b_journeys', 0)}")
                   print(f"   Converted Journeys: {status.get('converted_journeys', 0)}")
+                  print(f"   Updated Journeys: {status.get('updated_journeys', 0)}")
                   print(f"   Last Import: {status.get('last_import', 'Unknown')}")
                   
               else:
@@ -784,7 +756,7 @@ jobs:
         with:
           name: salesforce-import-results
           path: |
-            salesforce_import_data.json
+            journey_assembly_results.json
             import_results.json
             sf_auth.json
           retention-days: 7
@@ -794,6 +766,8 @@ jobs:
         run: |
           if [[ "${{ steps.import-data.outputs.import_success }}" == "true" ]]; then
             echo "**Salesforce Import**: Successfully imported ${{ steps.import-data.outputs.journeys_imported }} journeys" >> $GITHUB_STEP_SUMMARY
+            echo "**Journey IDs**: UUID-based format (journey_abc123)" >> $GITHUB_STEP_SUMMARY
+            echo "**Upsert Logic**: Updates existing records, inserts new ones" >> $GITHUB_STEP_SUMMARY
             echo "**Errors**: ${{ steps.import-data.outputs.errors_count }} import errors" >> $GITHUB_STEP_SUMMARY
             echo "**Ready**: Attribution models can now process imported data" >> $GITHUB_STEP_SUMMARY
           else
@@ -821,6 +795,12 @@ jobs:
           echo "| Data Collection | ${{ needs.data-collection.result }} | 8 Channels Processed |" >> $GITHUB_STEP_SUMMARY
           echo "| Journey Assembly | ${{ needs.journey-assembly.result }} | Journeys: ${{ needs.journey-assembly.outputs.journeys_assembled }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Salesforce Sync | ${{ needs.salesforce-sync.result }} | Records Synced |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 🔧 Fixed Issues" >> $GITHUB_STEP_SUMMARY
+          echo "- **Journey IDs**: Now using UUID format (journey_abc123) instead of sequential" >> $GITHUB_STEP_SUMMARY
+          echo "- **Duplicate Prevention**: Upsert logic prevents duplicate key errors" >> $GITHUB_STEP_SUMMARY
+          echo "- **Data Format**: Compatible with Customer Journey Assembler output" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           echo "## Next Scheduled Run" >> $GITHUB_STEP_SUMMARY
