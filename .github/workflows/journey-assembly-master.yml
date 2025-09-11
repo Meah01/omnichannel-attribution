@@ -634,7 +634,22 @@ jobs:
           
           # Use the assembler response format directly
           journey_data = assembler_response
+
+          # Debug: Print payload structure
+          print("DEBUG: Payload structure being sent to Salesforce:")
+          print(f"Available keys: {list(journey_data.keys())}")
+          print(f"Status: {journey_data.get('status')}")
+          print(f"Processed journeys: {journey_data.get('processed_journeys')}")
           
+          if journey_data.get('salesforce_ready_data'):
+              print(f"Salesforce ready data count: {len(journey_data['salesforce_ready_data'])}")
+              print("First journey sample:")
+              print(json.dumps(journey_data['salesforce_ready_data'][0], indent=2)[:500])
+          else:
+              print("ERROR: No salesforce_ready_data in payload!")
+              print("Full payload structure:")
+              print(json.dumps(journey_data, indent=2)[:1000])
+                    
           # Prepare API call
           import_url = f"{instance_url}/services/apexrest/attribution/import/journeys"
           
