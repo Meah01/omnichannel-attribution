@@ -3,6 +3,11 @@
 Currently working on the project. Published publicly tho to use the GitHub Workflows to automate the pipeline.<br>
 Uses Bunq as a case study and example. The company is not associated with this project in any way or form. 
 
+## More info
+If you're interested in this project, check out:
+- The project's [blog post](https://alex-constantinescu.netlify.app/portfolio/2024-01-15-omnichannel-attribution/?utm_source=github&utm_medium=referral&utm_campaign=github_omnichannel_attribution_project_2025&utm_term=Github&utm_content=post_link) for more regular updates and information
+- [My portfolio website](https://alex-constantinescu.netlify.app/?utm_source=github&utm_medium=referral&utm_campaign=github_profile_2025&utm_term=Github&utm_content=profile_link) for other related work in CRM, marketing and data science
+
 ## Aimed features
 - GitHub workflow automation
 - Synthethic data generators which mimic the data formats of exported through platform API's of Google Ads, Facebook Ads, etc
