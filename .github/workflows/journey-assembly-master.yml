@@ -566,8 +566,9 @@ jobs:
           import requests
           import json
           import os
+          from datetime import datetime
           
-          print("📤 Importing journey data to Salesforce...")
+          print("Importing journey data to Salesforce...")
           
           # Load auth info
           try:
@@ -577,12 +578,12 @@ jobs:
               access_token = auth_info["access_token"]
               instance_url = auth_info["instance_url"]
               
-              print(f"✅ Loaded authentication credentials")
+              print(f"Loaded authentication credentials")
               print(f"   - Instance URL: {instance_url}")
               print(f"   - Token: {access_token[:20]}...")
               
           except Exception as e:
-              print(f"❌ Failed to load auth info: {str(e)}")
+              print(f"Failed to load auth info: {str(e)}")
               exit(1)
           
           # Load journey assembly results
@@ -590,24 +591,63 @@ jobs:
               with open("journey_assembly_results.json", "r") as f:
                   journey_data = json.load(f)
               
-              print(f"✅ Loaded journey assembly results")
+              print(f"Loaded journey assembly results")
               print(f"   - Total journeys: {journey_data.get('journeys_assembled', 0)}")
               print(f"   - B2C journeys: {journey_data.get('b2c_journeys', 0)}")
               print(f"   - B2B journeys: {journey_data.get('b2b_journeys', 0)}")
               
           except Exception as e:
-              print(f"❌ Failed to load journey data: {str(e)}")
+              print(f"Failed to load journey data: {str(e)}")
               exit(1)
           
           # Verify salesforce_ready_data exists
-          if journey_data.get('salesforce_ready_data'):
-              print(f"📊 Salesforce ready data count: {len(journey_data['salesforce_ready_data'])}")
-              print("📋 First journey sample:")
-              print(json.dumps(journey_data['salesforce_ready_data'][0], indent=2)[:500])
-          else:
-              print("❌ No salesforce_ready_data in payload!")
-              print("📋 Full payload structure:")
-              print(json.dumps(journey_data, indent=2)[:1000])
+          if not journey_data.get('salesforce_ready_data'):
+              print("No salesforce_ready_data in payload!")
+              exit(1)
+          
+          print(f"Salesforce ready data count: {len(journey_data['salesforce_ready_data'])}")
+          
+          # Transform data to match JourneyDataImportService expected format
+          transformed_journeys = []
+          
+          for journey in journey_data['salesforce_ready_data']:
+              transformed_journey = {
+                  'journeyId': journey.get('journey_id'),
+                  'customerId': journey.get('customer_id'),
+                  'journeyType': journey.get('journey_type'),
+                  'startDate': journey.get('start_date', datetime.now().isoformat()),
+                  'endDate': journey.get('end_date', datetime.now().isoformat()),
+                  'converted': journey.get('converted', False),
+                  'conversionValue': journey.get('conversion_value', 0),
+                  'totalTouchpoints': journey.get('total_touchpoints', len(journey.get('touchpoints', []))),
+                  'touchpoints': [
+                      {
+                          'channel': tp.get('channel'),
+                          'timestamp': tp.get('timestamp'),
+                          'touchpointOrder': tp.get('touchpoint_order'),
+                          'campaignId': tp.get('campaign_id', ''),
+                          'deviceType': tp.get('device_type', 'Unknown'),
+                          'interactionType': tp.get('interaction_type', 'Click')
+                      }
+                      for tp in journey.get('touchpoints', [])
+                  ]
+              }
+              transformed_journeys.append(transformed_journey)
+          
+          # Create payload in the format expected by JourneyDataImportService
+          payload = {
+              'journeys': transformed_journeys,
+              'metadata': {
+                  'totalJourneys': journey_data.get('journeys_assembled', 0),
+                  'b2cJourneys': journey_data.get('b2c_journeys', 0),
+                  'b2bJourneys': journey_data.get('b2b_journeys', 0),
+                  'importTimestamp': datetime.now().isoformat()
+              }
+          }
+          
+          print(f"Transformed {len(transformed_journeys)} journeys to Salesforce format")
+          print("First transformed journey sample:")
+          print(json.dumps(transformed_journeys[0], indent=2)[:500])
           
           # Prepare API call
           import_url = f"{instance_url}/services/apexrest/attribution/import/journeys"
@@ -619,29 +659,31 @@ jobs:
           }
           
           try:
-              print(f"📤 Sending {len(journey_data['salesforce_ready_data'])} journeys to Salesforce...")
-              print(f"🔗 API Endpoint: {import_url}")
-              print(f"📦 Data Format: Customer Journey Assembler format")
+              print(f"Sending {len(transformed_journeys)} journeys to Salesforce...")
+              print(f"API Endpoint: {import_url}")
+              print(f"Payload structure: journeys array + metadata")
               
               response = requests.post(
                   import_url,
-                  json=journey_data,
+                  json=payload,
                   headers=headers,
                   timeout=120
               )
+              
+              print(f"Response Status: {response.status_code}")
               
               if response.status_code == 200:
                   result = response.json()
                   
                   if result.get('success', False):
-                      print(f"✅ Successfully imported to Salesforce!")
+                      print(f"Successfully imported to Salesforce!")
                       print(f"   - Processed: {result.get('totalProcessed', 0)}")
                       print(f"   - Success: {result.get('successCount', 0)}")
                       print(f"   - Errors: {result.get('errorCount', 0)}")
                       
                       if result.get('errors'):
-                          print("⚠️ Import errors:")
-                          for error in result['errors'][:3]:  # Show first 3 errors
+                          print("Import errors:")
+                          for error in result['errors'][:5]:
                               print(f"      - {error}")
                       
                       # Save detailed results
@@ -655,7 +697,7 @@ jobs:
                           f.write(f"errors_count={result.get('errorCount', 0)}\n")
                       
                   else:
-                      print(f"❌ Salesforce import failed: {result.get('message', 'Unknown error')}")
+                      print(f"Salesforce import failed: {result.get('message', 'Unknown error')}")
                       print(f"   - Errors: {result.get('errors', [])}")
                       
                       with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
@@ -663,17 +705,18 @@ jobs:
                       exit(1)
                   
               else:
-                  print(f"❌ HTTP Error {response.status_code}: {response.text}")
+                  print(f"HTTP Error {response.status_code}")
+                  print(f"   Response: {response.text[:500]}")
                   
                   with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
                       f.write(f"import_success=false\n")
                   exit(1)
               
           except Exception as e:
-              print(f"❌ Import error: {str(e)}")
+              print(f"Import error: {str(e)}")
               
               import traceback
-              print("📋 Traceback:")
+              print("Traceback:")
               traceback.print_exc()
               
               with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
