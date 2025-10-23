@@ -441,18 +441,17 @@ jobs:
               private_key = base64.b64decode(private_key_b64).decode('utf-8')
               
               # Build JWT claims
-              # Note: Trailhead Playground orgs use test.salesforce.com endpoint
               print("📝 Building JWT claims...")
               claims = {
                   'iss': consumer_key,
                   'sub': username,
-                  'aud': 'https://test.salesforce.com',  # Trailhead/Sandbox endpoint
+                  'aud': 'https://login.salesforce.com',
                   'exp': int(time.time()) + 300  # Token expires in 5 minutes
               }
               
               print(f"   - Issuer (Consumer Key): {consumer_key[:20]}...")
               print(f"   - Subject (Username): {username}")
-              print(f"   - Audience: https://test.salesforce.com (Trailhead Playground)")
+              print(f"   - Audience: https://login.salesforce.com")
               print(f"   - Expiration: {claims['exp']} ({time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(claims['exp']))})")
               
               # Create JWT assertion
@@ -461,7 +460,7 @@ jobs:
               print(f"   - Assertion created (length: {len(assertion)} chars)")
               
               # Prepare OAuth token request
-              token_url = 'https://test.salesforce.com/services/oauth2/token'  # Trailhead/Sandbox endpoint
+              token_url = 'https://login.salesforce.com/services/oauth2/token'
               payload = {
                   'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer',
                   'assertion': assertion
