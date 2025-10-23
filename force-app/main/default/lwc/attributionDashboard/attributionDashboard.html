@@ -1,0 +1,147 @@
+<template>
+    <lightning-card title="Omnichannel Attribution Platform" icon-name="custom:custom63">
+        <div class="dashboard-container">
+            
+            <!-- Navigation Tabs -->
+            <lightning-tabset active-tab-value={activeTabValue} onactive={handleTabChange} class="dashboard-tabs">
+                
+                <!-- Heuristic Models Tab -->
+                <lightning-tab label="Heuristic Models" value="heuristic-models" class="tab-content">
+                    <c-heuristics-models-view 
+                        start-date={startDate}
+                        end-date={endDate}
+                        selected-channels={selectedChannels}
+                        selected-audience={selectedAudience}
+                        selected-campaign={selectedCampaign}
+                        onfilterchange={handleFilterChange}>
+                    </c-heuristics-models-view>
+                </lightning-tab>
+
+                <!-- Channel Removal Tab -->
+                <lightning-tab label="Channel Removal" value="channel-removal" class="tab-content">
+                    <div class="tab-placeholder">
+                        <lightning-icon icon-name="utility:analytics" size="large"></lightning-icon>
+                        <h3>Channel Removal Analysis</h3>
+                        <p>Markov Chain-based channel removal effects coming soon...</p>
+                    </div>
+                </lightning-tab>
+
+                <!-- Conversion Contribution Tab -->
+                <lightning-tab label="Conversion Contribution" value="conversion-contribution" class="tab-content">
+                    <div class="tab-placeholder">
+                        <lightning-icon icon-name="utility:pie_chart" size="large"></lightning-icon>
+                        <h3>Shapley Value Attribution</h3>
+                        <p>Conversion contribution analysis coming soon...</p>
+                    </div>
+                </lightning-tab>
+
+                <!-- Model A/B Testing Tab -->
+                <lightning-tab label="Model A/B Testing" value="model-ab-testing" class="tab-content">
+                    <c-attribution-model-comparison
+                        start-date={startDate}
+                        end-date={endDate}
+                        selected-channels={selectedChannels}
+                        selected-audience={selectedAudience}
+                        onfilterchange={handleFilterChange}>
+                    </c-attribution-model-comparison>
+                </lightning-tab>
+
+                <!-- Forecasting Tab -->
+                <lightning-tab label="Forecasting" value="forecasting" class="tab-content">
+                    <div class="tab-placeholder">
+                        <lightning-icon icon-name="utility:forecasting" size="large"></lightning-icon>
+                        <h3>Budget Forecasting & Monte Carlo</h3>
+                        <p>Budget optimization and risk assessment coming soon...</p>
+                    </div>
+                </lightning-tab>
+
+            </lightning-tabset>
+
+            <!-- Global Filter Bar - Positioned Under Tabs -->
+            <div class="filter-bar">
+                
+                <!-- Date Range Filters -->
+                <div class="filter-group">
+                    <lightning-input 
+                        type="date" 
+                        label="Start Date" 
+                        value={startDate}
+                        onchange={handleStartDateChange}
+                        variant="label-inline"
+                        class="filter-input">
+                    </lightning-input>
+                    
+                    <lightning-input 
+                        type="date" 
+                        label="End Date" 
+                        value={endDate}
+                        onchange={handleEndDateChange}
+                        variant="label-inline"
+                        class="filter-input">
+                    </lightning-input>
+                </div>
+
+                <!-- Dropdown Filters -->
+                <div class="filter-group">
+                    <lightning-combobox
+                        label="Channel"
+                        value={selectedChannels}
+                        options={channelOptions}
+                        onchange={handleChannelChange}
+                        multiple="true"
+                        placeholder="Select Channels..."
+                        variant="label-inline"
+                        class="filter-combobox">
+                    </lightning-combobox>
+
+                    <lightning-combobox
+                        label="Audience"
+                        value={selectedAudience}
+                        options={audienceOptions}
+                        onchange={handleAudienceChange}
+                        placeholder="Select Audience..."
+                        variant="label-inline"
+                        class="filter-combobox">
+                    </lightning-combobox>
+                </div>
+
+                <!-- Campaign Search -->
+                <div class="filter-group">
+                    <lightning-input
+                        type="search"
+                        label="Campaign Name"
+                        value={selectedCampaign}
+                        onchange={handleCampaignSearchChange}
+                        placeholder="Search campaigns..."
+                        variant="label-inline"
+                        class="filter-input">
+                    </lightning-input>
+                </div>
+
+                <!-- Refresh Button -->
+                <div class="filter-group">
+                    <lightning-button
+                        variant="brand"
+                        label="Refresh Data"
+                        onclick={handleRefreshData}
+                        icon-name="utility:refresh"
+                        class="refresh-button">
+                    </lightning-button>
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- Loading Overlay -->
+        <template if:true={isLoading}>
+            <div class="loading-overlay">
+                <lightning-spinner 
+                    alternative-text="Loading attribution data..." 
+                    size="large">
+                </lightning-spinner>
+            </div>
+        </template>
+
+    </lightning-card>
+</template>

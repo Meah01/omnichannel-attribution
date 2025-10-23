@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Probability__c</fullName>
+    <label>Probability</label>
+    <type>Number</type>
+    <precision>10</precision>
+    <scale>8</scale>
+    <required>true</required>
+    <externalId>false</externalId>
+    <unique>false</unique>
+    <description>The probability of transitioning from the source state to the destination state (0.0 to 1.0)</description>
+    <inlineHelpText>Transition probability calculated from historical customer journey data</inlineHelpText>
+</CustomField>

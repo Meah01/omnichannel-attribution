@@ -13,7 +13,8 @@
  * - Linear attribution logic with multiple channels
  * - Channel statistics and comparison features
  * 
- * Author: Omnichannel Attribution Platform
+ * Author: Alexandru Constantinescu (www.linkedin.com/in/alexandru-constantinescu-6a18b6117)
+ * Project: Omnichannel Attribution Platform
  * Date: 2025
  * Version: 1.0
  */

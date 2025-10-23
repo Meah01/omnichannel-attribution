@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Matrix_Version__c</fullName>
+    <label>Matrix Version</label>
+    <type>Text</type>
+    <length>50</length>
+    <required>false</required>
+    <externalId>false</externalId>
+    <unique>false</unique>
+    <caseSensitive>false</caseSensitive>
+    <description>Version identifier for the transition matrix calculation (timestamp-based)</description>
+    <inlineHelpText>Unique identifier for each matrix calculation batch</inlineHelpText>
+</CustomField>

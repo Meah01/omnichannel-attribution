@@ -11,9 +11,10 @@
  * - Normalizes weights to sum to 100% across all touchpoints
  * - Supports configurable decay factors (default: 0.7)
  * 
- * Author: Omnichannel Attribution Platform
+ * Author: Alexandru Constantinescu (www.linkedin.com/in/alexandru-constantinescu-6a18b6117)
+ * Project: Omnichannel Attribution Platform
  * Date: 2025
- * Version: 1.0
+ * Version: 1.2
  */
 public class TimeDecayAttribution {
     

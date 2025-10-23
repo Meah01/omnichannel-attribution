@@ -1,0 +1,376 @@
+<template>
+    <div class="comparison-container">
+        
+        <!-- Comparison Controls Header -->
+        <div class="comparison-header">
+            <div class="model-selection-group">
+                <lightning-dual-listbox
+                    label="Compare Models"
+                    source-label="Available Models"
+                    selected-label="Selected Models"
+                    options={availableModels}
+                    value={selectedModelsForComparison}
+                    onchange={handleModelSelectionChange}
+                    min="2"
+                    max="5"
+                    variant="label-inline"
+                    class="model-comparison-selector">
+                </lightning-dual-listbox>
+                
+                <lightning-combobox
+                    label="Comparison"
+                    value={comparisonType}
+                    options={comparisonTypeOptions}
+                    onchange={handleComparisonTypeChange}
+                    variant="label-inline"
+                    class="comparison-type-selector">
+                </lightning-combobox>
+            </div>
+            
+            <div class="comparison-actions">
+                <lightning-button
+                    variant="brand"
+                    label="Run Comparison"
+                    onclick={handleRunComparison}
+                    icon-name="utility:analytics"
+                    disabled={isComparison}
+                    class="run-comparison-btn">
+                </lightning-button>
+                
+                <lightning-button
+                    variant="neutral"
+                    label="Export Comparison"
+                    onclick={handleExportComparison}
+                    icon-name="utility:download"
+                    class="export-btn">
+                </lightning-button>
+            </div>
+        </div>
+
+        <!-- Comparison Dashboard Grid -->
+        <div class="comparison-grid">
+            
+            <!-- Top Row: Variance and Ranking -->
+            <div class="comparison-row">
+                
+                <!-- Attribution Variance by Channel -->
+                <lightning-card title="Attribution Variance by Channel" icon-name="utility:chart" class="comparison-card">
+                    <div class="chart-container" data-chart="variance-analysis">
+                        <canvas 
+                            lwc:ref="varianceChart" 
+                            class="chart-canvas"
+                            width="540" 
+                            height="300">
+                        </canvas>
+                    </div>
+                    
+                    <div class="variance-legend">
+                        <div class="legend-item">
+                            <div class="legend-bar"></div>
+                            <span>Attribution Range</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-marker min"></div>
+                            <span>Minimum</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-marker max"></div>
+                            <span>Maximum</span>
+                        </div>
+                    </div>
+                    
+                    <div slot="actions">
+                        <lightning-button-icon
+                            icon-name="utility:info"
+                            variant="border-filled"
+                            alternative-text="Variance Info"
+                            onclick={handleVarianceInfo}>
+                        </lightning-button-icon>
+                    </div>
+                    
+                    <template if:true={isLoadingVariance}>
+                        <div class="chart-loading">
+                            <lightning-spinner size="medium" alternative-text="Loading variance analysis..."></lightning-spinner>
+                        </div>
+                    </template>
+                </lightning-card>
+
+                <!-- Channel Ranking Movement -->
+                <lightning-card title="Channel Ranking Movement" icon-name="utility:trending" class="comparison-card">
+                    <div class="chart-container" data-chart="ranking-movement">
+                        <canvas 
+                            lwc:ref="rankingChart" 
+                            class="chart-canvas"
+                            width="540" 
+                            height="300">
+                        </canvas>
+                    </div>
+                    
+                    <div class="ranking-legend">
+                        <template for:each={channelColors} for:item="colorItem">
+                            <div key={colorItem.channel} class="legend-item">
+                                <div class="legend-line" data-channel={colorItem.channel}></div>
+                                <span>{colorItem.channel}</span>
+                            </div>
+                        </template>
+                    </div>
+                    
+                    <div slot="actions">
+                        <lightning-button-icon
+                            icon-name="utility:sort"
+                            variant="border-filled"
+                            alternative-text="Sort Rankings"
+                            onclick={handleSortRankings}>
+                        </lightning-button-icon>
+                    </div>
+                    
+                    <template if:true={isLoadingRanking}>
+                        <div class="chart-loading">
+                            <lightning-spinner size="medium" alternative-text="Loading ranking movement..."></lightning-spinner>
+                        </div>
+                    </template>
+                </lightning-card>
+                
+            </div>
+            
+            <!-- Middle Row: Revenue Impact and Model Agreement -->
+            <div class="comparison-row">
+                
+                <!-- Revenue Impact Comparison -->
+                <lightning-card title="Revenue Impact Comparison" icon-name="utility:money" class="comparison-card">
+                    <div class="chart-container" data-chart="revenue-impact">
+                        <canvas 
+                            lwc:ref="revenueChart" 
+                            class="chart-canvas"
+                            width="540" 
+                            height="300">
+                        </canvas>
+                    </div>
+                    
+                    <div class="revenue-summary">
+                        <template if:true={revenueSummary}>
+                            <div class="summary-item">
+                                <span class="summary-label">Highest Attribution:</span>
+                                <span class="summary-value">{revenueSummary.highestModel}</span>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-label">Total Difference:</span>
+                                <span class="summary-value">{revenueSummary.totalDifference}</span>
+                            </div>
+                        </template>
+                    </div>
+                    
+                    <div slot="actions">
+                        <lightning-button-menu
+                            alternative-text="Revenue Actions"
+                            icon-size="x-small">
+                            <lightning-menu-item
+                                value="currency-eur"
+                                label="Show in EUR"
+                                onclick={handleCurrencyChange}>
+                            </lightning-menu-item>
+                            <lightning-menu-item
+                                value="currency-usd"
+                                label="Show in USD"
+                                onclick={handleCurrencyChange}>
+                            </lightning-menu-item>
+                            <lightning-menu-item
+                                value="percentage"
+                                label="Show as Percentage"
+                                onclick={handleCurrencyChange}>
+                            </lightning-menu-item>
+                        </lightning-button-menu>
+                    </div>
+                    
+                    <template if:true={isLoadingRevenue}>
+                        <div class="chart-loading">
+                            <lightning-spinner size="medium" alternative-text="Loading revenue impact..."></lightning-spinner>
+                        </div>
+                    </template>
+                </lightning-card>
+
+                <!-- Model Agreement Heatmap -->
+                <lightning-card title="Model Agreement Heatmap" icon-name="utility:matrix" class="comparison-card">
+                    <div class="chart-container" data-chart="agreement-heatmap">
+                        <canvas 
+                            lwc:ref="heatmapChart" 
+                            class="chart-canvas"
+                            width="540" 
+                            height="300">
+                        </canvas>
+                    </div>
+                    
+                    <div class="heatmap-scale">
+                        <div class="scale-label">Disagreement</div>
+                        <div class="color-gradient">
+                            <div class="gradient-bar"></div>
+                        </div>
+                        <div class="scale-label">Agreement</div>
+                        <div class="scale-values">
+                            <span>-1.0</span>
+                            <span>0.0</span>
+                            <span>+1.0</span>
+                        </div>
+                    </div>
+                    
+                    <div slot="actions">
+                        <lightning-button-icon
+                            icon-name="utility:matrix"
+                            variant="border-filled"
+                            alternative-text="Matrix Details"
+                            onclick={handleMatrixDetails}>
+                        </lightning-button-icon>
+                    </div>
+                    
+                    <template if:true={isLoadingHeatmap}>
+                        <div class="chart-loading">
+                            <lightning-spinner size="medium" alternative-text="Loading agreement analysis..."></lightning-spinner>
+                        </div>
+                    </template>
+                </lightning-card>
+                
+            </div>
+            
+            <!-- Bottom Row: Journey Performance Impact -->
+            <div class="comparison-row single-chart">
+                
+                <!-- Journey Length Sensitivity Analysis -->
+                <lightning-card title="Journey Performance Impact" icon-name="utility:multi_select_checkbox" class="comparison-card full-width">
+                    <div class="chart-container" data-chart="journey-sensitivity">
+                        <canvas 
+                            lwc:ref="sensitivityChart" 
+                            class="chart-canvas"
+                            width="1120" 
+                            height="400">
+                        </canvas>
+                    </div>
+                    
+                    <div class="sensitivity-controls">
+                        <div class="control-group">
+                            <lightning-input
+                                type="checkbox"
+                                label="Show Variance Bands"
+                                checked={showVarianceBands}
+                                onchange={handleVarianceBandsToggle}
+                                class="variance-toggle">
+                            </lightning-input>
+                            
+                            <lightning-combobox
+                                label="Focus Channel"
+                                value={focusChannel}
+                                options={channelFilterOptions}
+                                onchange={handleFocusChannelChange}
+                                placeholder="All Channels"
+                                class="channel-focus-selector">
+                            </lightning-combobox>
+                        </div>
+                        
+                        <div class="sensitivity-legend">
+                            <template for:each={modelLegendData} for:item="modelItem">
+                                <div key={modelItem.value} class="legend-item">
+                                    <div class="legend-line model-line" data-model={modelItem.value}></div>
+                                    <span>{modelItem.label}</span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    
+                    <div slot="actions">
+                        <lightning-button-group>
+                            <lightning-button
+                                variant="neutral"
+                                label="Reset Zoom"
+                                onclick={handleResetZoom}
+                                icon-name="utility:zoomout">
+                            </lightning-button>
+                            
+                            <lightning-button
+                                variant="neutral"
+                                label="Toggle Grid"
+                                onclick={handleToggleGrid}
+                                icon-name="utility:table">
+                            </lightning-button>
+                        </lightning-button-group>
+                    </div>
+                    
+                    <template if:true={isLoadingSensitivity}>
+                        <div class="chart-loading">
+                            <lightning-spinner size="medium" alternative-text="Loading sensitivity analysis..."></lightning-spinner>
+                        </div>
+                    </template>
+                </lightning-card>
+                
+            </div>
+            
+        </div>
+
+        <!-- Comparison Summary Panel -->
+        <template if:true={comparisonSummary}>
+            <lightning-card title="Comparison Summary" icon-name="utility:summary" class="summary-card">
+                <div class="summary-content">
+                    
+                    <div class="summary-section">
+                        <h4>Model Performance Overview</h4>
+                        <div class="performance-grid">
+                            <template for:each={comparisonSummary.modelPerformance} for:item="performance">
+                                <div key={performance.model} class="performance-item">
+                                    <div class="performance-header">
+                                        <span class="model-name">{performance.modelLabel}</span>
+                                        <span class="performance-score">{performance.overallScore}</span>
+                                    </div>
+                                    <div class="performance-details">
+                                        <div class="detail-item">
+                                            <span>Stability:</span>
+                                            <span class="detail-value">{performance.stability}</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span>Revenue Attribution:</span>
+                                            <span class="detail-value">{performance.revenueAttribution}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    
+                    <div class="summary-section">
+                        <h4>Key Insights</h4>
+                        <div class="insights-list">
+                            <template for:each={comparisonSummary.insights} for:item="insight">
+                                <div key={insight.id} class="insight-item">
+                                    <lightning-icon 
+                                        icon-name={insight.icon} 
+                                        size="small" 
+                                        class="insight-icon">
+                                    </lightning-icon>
+                                    <div class="insight-content">
+                                        <span class="insight-title">{insight.title}</span>
+                                        <p class="insight-description">{insight.description}</p>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    
+                </div>
+            </lightning-card>
+        </template>
+
+        <!-- Global Loading Overlay -->
+        <template if:true={isLoading}>
+            <div class="loading-overlay">
+                <lightning-spinner 
+                    alternative-text="Running model comparison analysis..." 
+                    size="large">
+                </lightning-spinner>
+                <div class="loading-message">
+                    <p>Comparing {selectedModelsForComparison.length} attribution models...</p>
+                    <template if:true={comparisonProgress}>
+                        <p class="progress-text">{comparisonProgress}</p>
+                    </template>
+                </div>
+            </div>
+        </template>
+
+    </div>
+</template>

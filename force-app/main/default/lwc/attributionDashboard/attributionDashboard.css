@@ -1,0 +1,260 @@
+/* Attribution Dashboard Component Styles */
+/* Bunq Color Palette Implementation */
+
+.dashboard-container {
+    background: #FFFFFF;
+    min-height: 600px;
+    position: relative;
+}
+
+/* Tab Navigation Styling */
+.dashboard-tabs {
+    --slds-c-tabs-color-border: #E5E5E5;
+    --slds-c-tabs-item-color-border-active: #0080FF;
+    --slds-c-tabs-item-color-text-active: #0080FF;
+}
+
+.dashboard-tabs .slds-tabs_default__nav-item {
+    margin-right: 24px;
+}
+
+.dashboard-tabs .slds-tabs_default__link {
+    font-family: 'Salesforce Sans', Arial, sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 12px 16px;
+    color: #000000;
+    text-decoration: none;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.dashboard-tabs .slds-tabs_default__link:hover {
+    color: #0080FF;
+    border-bottom-color: #47BFFF;
+}
+
+.dashboard-tabs .slds-is-active .slds-tabs_default__link {
+    color: #0080FF;
+    border-bottom-color: #0080FF;
+    font-weight: 600;
+}
+
+/* Tab Content Styling */
+.tab-content {
+    padding: 20px 0;
+    min-height: 500px;
+}
+
+.tab-placeholder {
+    text-align: center;
+    padding: 60px 20px;
+    color: #6B7280;
+}
+
+.tab-placeholder lightning-icon {
+    margin-bottom: 20px;
+    opacity: 0.6;
+}
+
+.tab-placeholder h3 {
+    font-size: 18px;
+    color: #000000;
+    margin-bottom: 12px;
+    font-weight: 600;
+}
+
+.tab-placeholder p {
+    font-size: 14px;
+    color: #6B7280;
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+/* Filter Bar Styling */
+.filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 16px 0;
+    border-bottom: 1px solid #E5E5E5;
+    margin-bottom: 20px;
+    align-items: end;
+}
+
+.filter-group {
+    display: flex;
+    gap: 12px;
+    align-items: end;
+}
+
+.filter-input {
+    --slds-c-input-color-border: #E5E5E5;
+    --slds-c-input-radius-border: 8px;
+    --slds-c-input-color-background: #FFFFFF;
+    min-width: 140px;
+}
+
+.filter-input input {
+    border-radius: 8px;
+    border: 1px solid #E5E5E5;
+    transition: border-color 0.2s ease;
+}
+
+.filter-input input:focus {
+    border-color: #0080FF;
+    box-shadow: 0 0 0 2px rgba(0, 128, 255, 0.1);
+}
+
+.filter-combobox {
+    --slds-c-combobox-color-border: #E5E5E5;
+    --slds-c-combobox-radius-border: 8px;
+    min-width: 160px;
+}
+
+.filter-combobox .slds-combobox {
+    border-radius: 8px;
+}
+
+.filter-combobox .slds-combobox_container {
+    border-radius: 8px;
+}
+
+.refresh-button {
+    --slds-c-button-brand-color-background: #0080FF;
+    --slds-c-button-brand-color-background-hover: #2850AF;
+    --slds-c-button-brand-color-border: #0080FF;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.refresh-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 128, 255, 0.2);
+}
+
+/* Loading Overlay */
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(2px);
+}
+
+.loading-overlay lightning-spinner {
+    --slds-c-spinner-color-foreground: #0080FF;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .filter-bar {
+        flex-direction: column;
+        gap: 12px;
+        align-items: stretch;
+    }
+    
+    .filter-group {
+        flex-direction: column;
+        gap: 8px;
+        align-items: stretch;
+    }
+    
+    .filter-input,
+    .filter-combobox {
+        min-width: 100%;
+    }
+    
+    .dashboard-tabs .slds-tabs_default__nav-item {
+        margin-right: 8px;
+    }
+    
+    .dashboard-tabs .slds-tabs_default__link {
+        font-size: 12px;
+        padding: 10px 12px;
+    }
+    
+    .tab-content {
+        padding: 16px 0;
+        min-height: 400px;
+    }
+    
+    .tab-placeholder {
+        padding: 40px 16px;
+    }
+    
+    .tab-placeholder h3 {
+        font-size: 16px;
+    }
+    
+    .tab-placeholder p {
+        font-size: 13px;
+    }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .dashboard-tabs .slds-tabs_default__link {
+        border: 1px solid transparent;
+    }
+    
+    .dashboard-tabs .slds-is-active .slds-tabs_default__link {
+        border-color: #0080FF;
+        background: rgba(0, 128, 255, 0.1);
+    }
+    
+    .filter-input input {
+        border: 2px solid #000000;
+    }
+    
+    .filter-input input:focus {
+        border-color: #0080FF;
+        border-width: 2px;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .dashboard-tabs .slds-tabs_default__link,
+    .filter-input input,
+    .refresh-button {
+        transition: none;
+    }
+    
+    .refresh-button:hover {
+        transform: none;
+    }
+    
+    .loading-overlay {
+        backdrop-filter: none;
+    }
+}
+
+/* Focus management */
+.dashboard-container:focus-within .dashboard-tabs .slds-tabs_default__link:focus {
+    outline: 2px solid #0080FF;
+    outline-offset: 2px;
+}
+
+/* Print styles */
+@media print {
+    .filter-bar,
+    .refresh-button,
+    .loading-overlay {
+        display: none;
+    }
+    
+    .dashboard-container {
+        background: white;
+    }
+    
+    .tab-content {
+        padding: 0;
+    }
+}

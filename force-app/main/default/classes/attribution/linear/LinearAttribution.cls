@@ -11,7 +11,8 @@
  * - Conversion value is distributed proportionally across all touchpoints
  * - Handles both B2B and B2C customer journeys
  * 
- * Author: Omnichannel Attribution Platform
+ * Author: Alexandru Constantinescu (www.linkedin.com/in/alexandru-constantinescu-6a18b6117)
+ * Project: Omnichannel Attribution Platform
  * Date: 2025
  * Version: 1.0
  */

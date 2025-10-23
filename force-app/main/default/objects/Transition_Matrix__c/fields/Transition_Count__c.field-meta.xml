@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Transition_Count__c</fullName>
+    <label>Transition Count</label>
+    <type>Number</type>
+    <precision>10</precision>
+    <scale>0</scale>
+    <required>false</required>
+    <externalId>false</externalId>
+    <unique>false</unique>
+    <description>The raw count of transitions observed between these states</description>
+    <inlineHelpText>Number of actual transitions observed in the training data</inlineHelpText>
+</CustomField>

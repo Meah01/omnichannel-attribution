@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Customer_Type__c</fullName>
+    <label>Customer Type</label>
+    <type>Picklist</type>
+    <required>true</required>
+    <externalId>false</externalId>
+    <unique>false</unique>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>B2C</fullName>
+                <default>false</default>
+                <label>B2C</label>
+            </value>
+            <value>
+                <fullName>B2B</fullName>
+                <default>false</default>
+                <label>B2B</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+    <description>The customer type this transition matrix applies to (B2C or B2B)</description>
+    <inlineHelpText>Customer type determines the appropriate state space for attribution calculations</inlineHelpText>
+</CustomField>

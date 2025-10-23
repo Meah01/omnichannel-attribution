@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>61.0</apiVersion>
+    <description>Advanced Markov Chain Attribution Analysis Dashboard with multiple visualization modes including network graphs, transition matrices, flow diagrams, and Sankey charts for B2B and B2C customer journey analysis.</description>
+    <isExposed>true</isExposed>
+    <masterLabel>Markov Chain Attribution Dashboard</masterLabel>
+    
+    <targets>
+        <target>lightning__AppPage</target>
+        <target>lightning__HomePage</target>
+        <target>lightning__RecordPage</target>
+        <target>lightning__Tab</target>
+    </targets>
+    
+    <targetConfigs>
+        <targetConfig targets="lightning__AppPage,lightning__HomePage">
+            <supportedFormFactors>
+                <supportedFormFactor type="Large"/>
+                <supportedFormFactor type="Small"/>
+            </supportedFormFactors>
+            <property name="cardTitle" type="String" default="Markov Chain Attribution Analysis" label="Dashboard Title" description="Title displayed in the dashboard header"/>
+            <property name="defaultCustomerType" type="String" default="B2C" label="Default Customer Type" description="Default customer segment to display on load (B2C or B2B)"/>
+            <property name="defaultVisualization" type="String" default="network" label="Default Visualization" description="Default visualization mode to display on load"/>
+            <property name="autoRefreshInterval" type="Integer" default="0" label="Auto Refresh Interval (minutes)" description="Automatic refresh interval in minutes (0 = disabled)" min="0" max="60"/>
+            <property name="showInsightsPanel" type="Boolean" default="true" label="Show Insights Panel" description="Display the insights and analytics panel"/>
+            <property name="showQualityMetrics" type="Boolean" default="true" label="Show Quality Metrics" description="Display stage detection quality metrics"/>
+            <property name="enableNetworkInteraction" type="Boolean" default="true" label="Enable Network Interaction" description="Allow user interaction with network graph (zoom, drag)"/>
+            <property name="minProbabilityThreshold" type="Integer" default="5" label="Min Probability Threshold (%)" description="Minimum probability threshold for displaying transitions" min="1" max="50"/>
+        </targetConfig>
+        
+        <targetConfig targets="lightning__RecordPage">
+            <supportedFormFactors>
+                <supportedFormFactor type="Large"/>
+                <supportedFormFactor type="Small"/>
+            </supportedFormFactors>
+            <objects>
+                <object>Campaign__c</object>
+                <object>Customer_Journey__c</object>
+                <object>Attribution_Result__c</object>
+                <object>Customer_Segment__c</object>
+            </objects>
+            <property name="recordContextMode" type="Boolean" default="true" label="Use Record Context" description="Filter data based on current record context"/>
+            <property name="relatedRecordField" type="String" default="" label="Related Record Field" description="Field to use for filtering related attribution data"/>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

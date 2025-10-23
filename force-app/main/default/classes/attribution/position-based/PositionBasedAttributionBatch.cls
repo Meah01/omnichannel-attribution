@@ -1,7 +1,7 @@
 /**
- * TimeDecayAttributionBatch
+ * PositionBasedAttributionBatch
  * 
- * Batch class for processing Time Decay Attribution calculations on large datasets.
+ * Batch class for processing Position-Based Attribution calculations on large datasets.
  * This class handles bulk processing of customer journeys while respecting Salesforce
  * governor limits and providing proper error handling and monitoring.
  * 
@@ -10,18 +10,16 @@
  * - Handles cleanup of existing attribution results
  * - Provides progress tracking and error reporting
  * - Supports both full and incremental processing modes
- * - Applies exponential decay based on touchpoint timing
- * 
+ * - Applies U-shaped attribution (40% first, 40% last, 20% middle)
  * Author: Alexandru Constantinescu (www.linkedin.com/in/alexandru-constantinescu-6a18b6117)
  * Project: Omnichannel Attribution Platform
- * 
  * Date: 2025
- * Version: 1.2
+ * Version: 1.3
  */
-global class TimeDecayAttributionBatch implements Database.Batchable<sObject>, Database.Stateful {
+global class PositionBasedAttributionBatch implements Database.Batchable<sObject>, Database.Stateful {
     
     // Batch configuration
-    private static final String ATTRIBUTION_MODEL = 'TimeDecay';
+    private static final String ATTRIBUTION_MODEL = 'PositionBased';
     private static final Integer DEFAULT_BATCH_SIZE = 200;
     
     // Instance variables for tracking
@@ -36,7 +34,7 @@ global class TimeDecayAttributionBatch implements Database.Batchable<sObject>, D
      * 
      * @param journeyIds List of Customer Journey IDs to process
      */
-    global TimeDecayAttributionBatch(List<Id> journeyIds) {
+    global PositionBasedAttributionBatch(List<Id> journeyIds) {
         this.journeyIds = journeyIds;
         this.processingStartTime = DateTime.now();
     }
@@ -44,7 +42,7 @@ global class TimeDecayAttributionBatch implements Database.Batchable<sObject>, D
     /**
      * Default constructor for processing all journeys
      */
-    global TimeDecayAttributionBatch() {
+    global PositionBasedAttributionBatch() {
         this.journeyIds = new List<Id>();
         this.processingStartTime = DateTime.now();
     }
@@ -70,7 +68,7 @@ global class TimeDecayAttributionBatch implements Database.Batchable<sObject>, D
         
         query += ' ORDER BY Journey_Start_Date__c ASC';
         
-        System.debug('TimeDecayAttributionBatch start query: ' + query);
+        System.debug('PositionBasedAttributionBatch start query: ' + query);
         
         return Database.getQueryLocator(query);
     }
@@ -82,7 +80,7 @@ global class TimeDecayAttributionBatch implements Database.Batchable<sObject>, D
      * @param scope List of Customer_Journey__c records to process
      */
     global void execute(Database.BatchableContext context, List<Customer_Journey__c> scope) {
-        System.debug('Processing batch of ' + scope.size() + ' journeys for Time Decay Attribution');
+        System.debug('Processing batch of ' + scope.size() + ' journeys for Position-Based Attribution');
         
         List<Id> batchJourneyIds = new List<Id>();
         for (Customer_Journey__c journey : scope) {
@@ -90,15 +88,15 @@ global class TimeDecayAttributionBatch implements Database.Batchable<sObject>, D
         }
         
         try {
-            // Clean up existing Time Decay attribution results for this batch
+            // Clean up existing Position-Based attribution results for this batch
             cleanupExistingResults(batchJourneyIds);
             
             // Calculate new attribution results using the main class
-            List<Attribution_Result__c> attributionResults = TimeDecayAttribution.calculateAttributionBatch(batchJourneyIds);
+            List<Attribution_Result__c> attributionResults = PositionBasedAttribution.calculateAttributionBatch(batchJourneyIds);
             
             // Validate results before saving
-            if (!TimeDecayAttribution.validateAttributionResults(attributionResults)) {
-                throw new BatchProcessingException('Time Decay Attribution validation failed for batch');
+            if (!PositionBasedAttribution.validateAttributionResults(attributionResults)) {
+                throw new BatchProcessingException('Position-Based Attribution validation failed for batch');
             }
             
             // Save attribution results
@@ -111,7 +109,7 @@ global class TimeDecayAttributionBatch implements Database.Batchable<sObject>, D
             
         } catch (Exception e) {
             totalErrors += scope.size();
-            String errorMessage = 'Error processing Time Decay Attribution batch: ' + e.getMessage() + ' Stack: ' + e.getStackTraceString();
+            String errorMessage = 'Error processing Position-Based Attribution batch: ' + e.getMessage() + ' Stack: ' + e.getStackTraceString();
             errorMessages.add(errorMessage);
             System.debug(errorMessage);
         }
@@ -126,7 +124,7 @@ global class TimeDecayAttributionBatch implements Database.Batchable<sObject>, D
         DateTime processingEndTime = DateTime.now();
         Long processingDuration = processingEndTime.getTime() - processingStartTime.getTime();
         
-        System.debug('TimeDecayAttributionBatch completed. Total processed: ' + totalProcessed + 
+        System.debug('PositionBasedAttributionBatch completed. Total processed: ' + totalProcessed + 
                     ', Total errors: ' + totalErrors + ', Duration: ' + processingDuration + 'ms');
         
         // Log processing metrics
@@ -157,11 +155,11 @@ global class TimeDecayAttributionBatch implements Database.Batchable<sObject>, D
             
             if (!existingResults.isEmpty()) {
                 delete existingResults;
-                System.debug('Deleted ' + existingResults.size() + ' existing Time Decay attribution results');
+                System.debug('Deleted ' + existingResults.size() + ' existing Position-Based attribution results');
             }
             
         } catch (Exception e) {
-            System.debug('Warning: Could not clean up existing Time Decay results: ' + e.getMessage());
+            System.debug('Warning: Could not clean up existing Position-Based results: ' + e.getMessage());
         }
     }
     
@@ -176,7 +174,7 @@ global class TimeDecayAttributionBatch implements Database.Batchable<sObject>, D
             Database.SaveResult result = saveResults[i];
             
             if (!result.isSuccess()) {
-                String errorMessage = 'Failed to save Time Decay attribution result for journey ' + 
+                String errorMessage = 'Failed to save Position-Based attribution result for journey ' + 
                                     attributionResults[i].Customer_Journey__c + ': ';
                 
                 for (Database.Error error : result.getErrors()) {
@@ -207,7 +205,7 @@ global class TimeDecayAttributionBatch implements Database.Batchable<sObject>, D
      * @param processingDuration Duration of the batch processing in milliseconds
      */
     private void logProcessingMetrics(Long processingDuration) {
-        System.debug('=== Time Decay Attribution Batch Processing Metrics ===');
+        System.debug('=== Position-Based Attribution Batch Processing Metrics ===');
         System.debug('Start Time: ' + processingStartTime);
         System.debug('End Time: ' + DateTime.now());
         System.debug('Duration: ' + processingDuration + 'ms');
@@ -229,7 +227,7 @@ global class TimeDecayAttributionBatch implements Database.Batchable<sObject>, D
     private void sendErrorNotification() {
         // Create a simple debug log entry for now
         // In production, this could send actual emails or create cases
-        System.debug('ERROR NOTIFICATION: Time Decay Attribution batch processing completed with ' + 
+        System.debug('ERROR NOTIFICATION: Position-Based Attribution batch processing completed with ' + 
                     totalErrors + ' errors out of ' + totalProcessed + ' total records processed.');
     }
     
@@ -267,7 +265,7 @@ global class TimeDecayAttributionBatch implements Database.Batchable<sObject>, D
      * @return Database.BatchableContext for monitoring
      */
     global static Id executeBatch(Integer batchSize) {
-        TimeDecayAttributionBatch batch = new TimeDecayAttributionBatch();
+        PositionBasedAttributionBatch batch = new PositionBasedAttributionBatch();
         return Database.executeBatch(batch, batchSize);
     }
     
@@ -289,7 +287,7 @@ global class TimeDecayAttributionBatch implements Database.Batchable<sObject>, D
      * @return Database.BatchableContext for monitoring
      */
     global static Id executeBatch(List<Id> journeyIds, Integer batchSize) {
-        TimeDecayAttributionBatch batch = new TimeDecayAttributionBatch(journeyIds);
+        PositionBasedAttributionBatch batch = new PositionBasedAttributionBatch(journeyIds);
         return Database.executeBatch(batch, batchSize);
     }
     

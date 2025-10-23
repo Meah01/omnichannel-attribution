@@ -1,0 +1,249 @@
+<template>
+    <div class="heuristic-models-container">
+        
+        <!-- Model Selection Header -->
+        <div class="model-header">
+            <div class="model-selector-group">
+                <lightning-combobox
+                    label="Select Model"
+                    value={selectedModel}
+                    options={modelOptions}
+                    onchange={handleModelChange}
+                    placeholder="Choose attribution model..."
+                    variant="label-inline"
+                    class="model-selector">
+                </lightning-combobox>
+                
+                <lightning-combobox
+                    label="Single Model View"
+                    value={selectedView}
+                    options={viewOptions}
+                    onchange={handleViewChange}
+                    variant="label-inline"
+                    class="view-selector">
+                </lightning-combobox>
+            </div>
+            
+            <div class="action-buttons">
+                <lightning-button
+                    variant="neutral"
+                    label="Calculate Attribution"
+                    onclick={handleCalculateAttribution}
+                    icon-name="utility:apex"
+                    class="action-button"
+                    disabled={isCalculating}>
+                </lightning-button>
+                
+                <lightning-button
+                    variant="brand-outline"
+                    label="Export Data"
+                    onclick={handleExportData}
+                    icon-name="utility:download"
+                    class="action-button">
+                </lightning-button>
+            </div>
+        </div>
+
+        <!-- Dashboard Grid -->
+        <div class="dashboard-grid">
+            
+            <!-- Top Row: Attribution Charts -->
+            <div class="chart-row">
+                
+                <!-- Primary Attribution Chart -->
+                <lightning-card title="Channel Attribution Percentages" icon-name="utility:chart" class="chart-card">
+                    <div class="chart-container" data-chart="attribution-breakdown">
+                        <canvas 
+                            lwc:ref="attributionChart" 
+                            class="chart-canvas"
+                            width="540" 
+                            height="300">
+                        </canvas>
+                    </div>
+                    
+                    <div slot="actions">
+                        <lightning-button-icon
+                            icon-name="utility:refresh"
+                            variant="border-filled"
+                            alternative-text="Refresh Chart"
+                            onclick={handleRefreshAttributionChart}>
+                        </lightning-button-icon>
+                    </div>
+                    
+                    <template if:true={isLoadingAttribution}>
+                        <div class="chart-loading">
+                            <lightning-spinner size="medium" alternative-text="Loading attribution data..."></lightning-spinner>
+                        </div>
+                    </template>
+                </lightning-card>
+
+                <!-- Attribution Over Time -->
+                <lightning-card title="Attribution Over Time in Percentage" icon-name="utility:trending" class="chart-card">
+                    <div class="chart-container" data-chart="attribution-timeline">
+                        <canvas 
+                            lwc:ref="timelineChart" 
+                            class="chart-canvas"
+                            width="540" 
+                            height="300">
+                        </canvas>
+                    </div>
+                    
+                    <div slot="actions">
+                        <lightning-button-icon
+                            icon-name="utility:settings"
+                            variant="border-filled"
+                            alternative-text="Chart Settings"
+                            onclick={handleTimelineSettings}>
+                        </lightning-button-icon>
+                    </div>
+                    
+                    <template if:true={isLoadingTimeline}>
+                        <div class="chart-loading">
+                            <lightning-spinner size="medium" alternative-text="Loading timeline data..."></lightning-spinner>
+                        </div>
+                    </template>
+                </lightning-card>
+                
+            </div>
+            
+            <!-- Bottom Row: Performance Analysis -->
+            <div class="chart-row">
+                
+                <!-- Campaign Performance Table -->
+                <lightning-card title="Campaign Performance Table" icon-name="utility:table" class="table-card">
+                    
+                    <template if:true={hasCampaignData}>
+                        <lightning-datatable
+                            data={campaignData}
+                            columns={campaignColumns}
+                            key-field="Id"
+                            onrowselection={handleCampaignSelection}
+                            sorted-by={sortedBy}
+                            sorted-direction={sortedDirection}
+                            onsort={handleCampaignSort}
+                            class="campaign-table">
+                        </lightning-datatable>
+                    </template>
+                    
+                    <template if:false={hasCampaignData}>
+                        <div class="no-data-message">
+                            <lightning-icon icon-name="utility:info" size="small"></lightning-icon>
+                            <p>No campaign data available. Please select a model and calculate attribution.</p>
+                        </div>
+                    </template>
+                    
+                    <div slot="actions">
+                        <lightning-button-menu
+                            alternative-text="Table Actions"
+                            icon-size="x-small">
+                            <lightning-menu-item
+                                value="export-csv"
+                                label="Export as CSV"
+                                onclick={handleExportCampaignData}>
+                            </lightning-menu-item>
+                            <lightning-menu-item
+                                value="view-details"
+                                label="View Campaign Details"
+                                onclick={handleViewCampaignDetails}>
+                            </lightning-menu-item>
+                        </lightning-button-menu>
+                    </div>
+                    
+                    <template if:true={isLoadingCampaigns}>
+                        <div class="chart-loading">
+                            <lightning-spinner size="medium" alternative-text="Loading campaign data..."></lightning-spinner>
+                        </div>
+                    </template>
+                </lightning-card>
+
+                <!-- Journey Performance Impact -->
+                <lightning-card title="Journey Performance Impact" icon-name="utility:apps" class="chart-card">
+                    <div class="chart-container" data-chart="journey-performance">
+                        <canvas 
+                            lwc:ref="journeyChart" 
+                            class="chart-canvas"
+                            width="540" 
+                            height="300">
+                        </canvas>
+                    </div>
+                    
+                    <div class="chart-legend">
+                        <div class="legend-item">
+                            <div class="legend-dot converted"></div>
+                            <span>Converted Journeys</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-dot non-converted"></div>
+                            <span>Non-converted Journeys</span>
+                        </div>
+                    </div>
+                    
+                    <div slot="actions">
+                        <lightning-button-icon
+                            icon-name="utility:zoomin"
+                            variant="border-filled"
+                            alternative-text="Zoom Chart"
+                            onclick={handleJourneyChartZoom}>
+                        </lightning-button-icon>
+                    </div>
+                    
+                    <template if:true={isLoadingJourney}>
+                        <div class="chart-loading">
+                            <lightning-spinner size="medium" alternative-text="Loading journey data..."></lightning-spinner>
+                        </div>
+                    </template>
+                </lightning-card>
+                
+            </div>
+            
+        </div>
+
+        <!-- Model Information Panel -->
+        <template if:true={selectedModelInfo}>
+            <lightning-card title="Model Information" icon-name="utility:info" class="info-card">
+                <div class="model-info-content">
+                    <h4>{selectedModelInfo.label}</h4>
+                    <p class="model-description">{selectedModelInfo.description}</p>
+                    
+                    <template if:true={attributionSummary}>
+                        <div class="summary-stats">
+                            <div class="stat-item">
+                                <span class="stat-label">Total Journeys:</span>
+                                <span class="stat-value">{attributionSummary.totalJourneys}</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Active Channels:</span>
+                                <span class="stat-value">{attributionSummary.totalChannels}</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Total Attribution Value:</span>
+                                <span class="stat-value">{formattedAttributionValue}</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Average per Journey:</span>
+                                <span class="stat-value">{formattedAverageAttribution}</span>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </lightning-card>
+        </template>
+
+        <!-- Global Loading Overlay -->
+        <template if:true={isLoading}>
+            <div class="loading-overlay">
+                <lightning-spinner 
+                    alternative-text="Processing attribution calculation..." 
+                    size="large">
+                </lightning-spinner>
+                <div class="loading-message">
+                    <p>Calculating {selectedModelLabel} attribution...</p>
+                    <template if:true={calculationProgress}>
+                        <p class="progress-text">{calculationProgress}</p>
+                    </template>
+                </div>
+            </div>
+        </template>
+
+    </div>
+</template>

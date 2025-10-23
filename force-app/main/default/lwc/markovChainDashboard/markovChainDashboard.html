@@ -1,0 +1,348 @@
+<!-- markovChainDashboard.html -->
+<template>
+    <lightning-card class="markov-dashboard-card">
+        <!-- Header with Controls -->
+        <div slot="title" class="dashboard-header">
+            <div class="header-left">
+                <lightning-icon icon-name="utility:matrix" alternative-text="Markov Chain" size="small" class="header-icon"></lightning-icon>
+                <h2 class="dashboard-title">Markov Chain Attribution Analysis</h2>
+                <lightning-badge label={customerType} class="customer-type-badge"></lightning-badge>
+            </div>
+            
+            <div class="header-controls">
+                <!-- Visualization Type Switcher -->
+                <lightning-button-group class="visualization-switcher">
+                    <lightning-button 
+                        label="Network Graph" 
+                        onclick={handleVisualizationChange}
+                        data-visualization="network"
+                        variant={networkButtonVariant}
+                        icon-name="utility:hierarchy">
+                    </lightning-button>
+                    <lightning-button 
+                        label="Transition Matrix" 
+                        onclick={handleVisualizationChange}
+                        data-visualization="matrix"
+                        variant={matrixButtonVariant}
+                        icon-name="utility:matrix">
+                    </lightning-button>
+                    <lightning-button 
+                        label="Flow Diagram" 
+                        onclick={handleVisualizationChange}
+                        data-visualization="flow"
+                        variant={flowButtonVariant}
+                        icon-name="utility:flow">
+                    </lightning-button>
+                    <lightning-button 
+                        label="Sankey Chart" 
+                        onclick={handleVisualizationChange}
+                        data-visualization="sankey"
+                        variant={sankeyButtonVariant}
+                        icon-name="utility:chart">
+                    </lightning-button>
+                </lightning-button-group>
+                
+                <!-- Customer Type Switcher -->
+                <lightning-button-group class="customer-type-switcher">
+                    <lightning-button 
+                        label="B2C" 
+                        onclick={handleCustomerTypeChange}
+                        data-customer-type="B2C"
+                        variant={b2cButtonVariant}
+                        icon-name="utility:user">
+                    </lightning-button>
+                    <lightning-button 
+                        label="B2B" 
+                        onclick={handleCustomerTypeChange}
+                        data-customer-type="B2B"
+                        variant={b2bButtonVariant}
+                        icon-name="utility:company">
+                    </lightning-button>
+                </lightning-button-group>
+                
+                <!-- Refresh Button -->
+                <lightning-button 
+                    label="Refresh" 
+                    onclick={handleRefresh}
+                    icon-name="utility:refresh"
+                    class="refresh-button">
+                </lightning-button>
+            </div>
+        </div>
+
+        <!-- Loading Spinner -->
+        <template if:true={isLoading}>
+            <div class="loading-container">
+                <lightning-spinner alternative-text="Loading Markov Chain data..." size="large"></lightning-spinner>
+                <p class="loading-text">Loading {currentVisualization} for {customerType} customers...</p>
+            </div>
+        </template>
+
+        <!-- Error Message -->
+        <template if:true={error}>
+            <div class="error-container">
+                <lightning-icon icon-name="utility:error" variant="error" size="medium"></lightning-icon>
+                <h3 class="error-title">Unable to Load Markov Chain Data</h3>
+                <p class="error-message">{error}</p>
+                <lightning-button 
+                    label="Try Again" 
+                    onclick={handleRefresh}
+                    variant="brand">
+                </lightning-button>
+            </div>
+        </template>
+
+        <!-- Main Content -->
+        <template if:false={isLoading}>
+            <template if:false={error}>
+                <!-- Statistics Bar -->
+                <div class="statistics-bar">
+                    <div class="stat-item">
+                        <lightning-icon icon-name="utility:groups" size="x-small"></lightning-icon>
+                        <span class="stat-label">Total States:</span>
+                        <span class="stat-value">{totalStates}</span>
+                    </div>
+                    <div class="stat-item">
+                        <lightning-icon icon-name="utility:link" size="x-small"></lightning-icon>
+                        <span class="stat-label">Transitions:</span>
+                        <span class="stat-value">{totalTransitions}</span>
+                    </div>
+                    <div class="stat-item">
+                        <lightning-icon icon-name="utility:success" size="x-small"></lightning-icon>
+                        <span class="stat-label">Conversion Rate:</span>
+                        <span class="stat-value">{conversionRate}%</span>
+                    </div>
+                    <div class="stat-item">
+                        <lightning-icon icon-name="utility:clock" size="x-small"></lightning-icon>
+                        <span class="stat-label">Last Updated:</span>
+                        <span class="stat-value">{lastUpdated}</span>
+                    </div>
+                </div>
+
+                <!-- Visualization Container -->
+                <div class="visualization-container">
+                    <!-- Network Graph -->
+                    <template if:true={showNetworkGraph}>
+                        <div class="network-graph-container">
+                            <h3 class="section-title">
+                                <lightning-icon icon-name="utility:hierarchy" size="small"></lightning-icon>
+                                State Transition Network
+                            </h3>
+                            <div class="network-controls">
+                                <lightning-input 
+                                    type="range" 
+                                    label="Zoom Level" 
+                                    min="0.5" 
+                                    max="2" 
+                                    step="0.1" 
+                                    value={zoomLevel}
+                                    onchange={handleZoomChange}
+                                    class="zoom-slider">
+                                </lightning-input>
+                                <lightning-button-group>
+                                    <lightning-button label="Fit to Screen" onclick={handleFitToScreen}></lightning-button>
+                                    <lightning-button label="Reset View" onclick={handleResetView}></lightning-button>
+                                </lightning-button-group>
+                            </div>
+                            <div class="network-graph" lwc:dom="manual"></div>
+                            <div class="network-legend">
+                                <div class="legend-item">
+                                    <div class="legend-color awareness-color"></div>
+                                    <span>Awareness</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div class="legend-color interest-color"></div>
+                                    <span>Interest</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div class="legend-color consideration-color"></div>
+                                    <span>Consideration</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div class="legend-color conversion-color"></div>
+                                    <span>Conversion</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div class="legend-color retention-color"></div>
+                                    <span>Retention</span>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Transition Matrix -->
+                    <template if:true={showTransitionMatrix}>
+                        <div class="matrix-container">
+                            <h3 class="section-title">
+                                <lightning-icon icon-name="utility:matrix" size="small"></lightning-icon>
+                                Transition Probability Matrix
+                            </h3>
+                            <div class="matrix-controls">
+                                <lightning-input 
+                                    type="number" 
+                                    label="Min Probability %" 
+                                    value={minProbabilityFilter}
+                                    onchange={handleProbabilityFilterChange}
+                                    min="0" 
+                                    max="100" 
+                                    step="1">
+                                </lightning-input>
+                                <lightning-combobox
+                                    label="Sort By"
+                                    value={matrixSortBy}
+                                    placeholder="Select sorting option"
+                                    options={matrixSortOptions}
+                                    onchange={handleMatrixSortChange}>
+                                </lightning-combobox>
+                            </div>
+                            <div class="transition-matrix" lwc:dom="manual"></div>
+                        </div>
+                    </template>
+
+                    <!-- Flow Diagram -->
+                    <template if:true={showFlowDiagram}>
+                        <div class="flow-container">
+                            <h3 class="section-title">
+                                <lightning-icon icon-name="utility:flow" size="small"></lightning-icon>
+                                Customer Journey Flow
+                            </h3>
+                            <div class="flow-controls">
+                                <lightning-combobox
+                                    label="Flow Type"
+                                    value={flowType}
+                                    placeholder="Select flow type"
+                                    options={flowTypeOptions}
+                                    onchange={handleFlowTypeChange}>
+                                </lightning-combobox>
+                                <lightning-button-group>
+                                    <lightning-button label="Show All Paths" onclick={handleShowAllPaths}></lightning-button>
+                                    <lightning-button label="Top Paths Only" onclick={handleShowTopPaths}></lightning-button>
+                                </lightning-button-group>
+                            </div>
+                            <div class="flow-diagram" lwc:dom="manual"></div>
+                        </div>
+                    </template>
+
+                    <!-- Sankey Chart -->
+                    <template if:true={showSankeyChart}>
+                        <div class="sankey-container">
+                            <h3 class="section-title">
+                                <lightning-icon icon-name="utility:chart" size="small"></lightning-icon>
+                                Attribution Flow Analysis
+                            </h3>
+                            <div class="sankey-controls">
+                                <lightning-combobox
+                                    label="Group By"
+                                    value={sankeyGroupBy}
+                                    placeholder="Select grouping"
+                                    options={sankeyGroupOptions}
+                                    onchange={handleSankeyGroupChange}>
+                                </lightning-combobox>
+                                <lightning-input 
+                                    type="number" 
+                                    label="Min Flow Value" 
+                                    value={minFlowValue}
+                                    onchange={handleMinFlowChange}
+                                    min="0" 
+                                    step="0.01">
+                                </lightning-input>
+                            </div>
+                            <div class="sankey-chart" lwc:dom="manual"></div>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Insights Panel -->
+                <template if:true={networkData}>
+                    <div class="insights-panel">
+                        <h3 class="section-title">
+                            <lightning-icon icon-name="utility:insights" size="small"></lightning-icon>
+                            Key Insights
+                        </h3>
+                        
+                        <!-- Conversion Paths -->
+                        <template if:true={conversionPaths}>
+                            <div class="insight-section">
+                                <h4 class="insight-title">Top Conversion Paths</h4>
+                                <template for:each={conversionPaths} for:item="path">
+                                    <div key={path.path} class="conversion-path-item">
+                                        <span class="path-text">{path.path}</span>
+                                        <span class="path-probability">{path.probability}%</span>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+
+                        <!-- Stage Analysis -->
+                        <template if:true={stageAnalysis}>
+                            <div class="insight-section">
+                                <h4 class="insight-title">Stage Transition Analysis</h4>
+                                <template for:each={stageTransitions} for:item="transition">
+                                    <div key={transition.transition} class="stage-transition-item">
+                                        <span class="transition-text">{transition.transition}</span>
+                                        <span class="transition-count">{transition.count} occurrences</span>
+                                        <span class="transition-probability">{transition.totalProbability}%</span>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+
+                        <!-- Network Statistics -->
+                        <template if:true={networkStatistics}>
+                            <div class="insight-section">
+                                <h4 class="insight-title">Network Metrics</h4>
+                                <div class="metrics-grid">
+                                    <div class="metric-item">
+                                        <span class="metric-label">Network Density:</span>
+                                        <span class="metric-value">{networkDensity}%</span>
+                                    </div>
+                                    <div class="metric-item">
+                                        <span class="metric-label">Avg Probability:</span>
+                                        <span class="metric-value">{averageProbability}%</span>
+                                    </div>
+                                    <div class="metric-item">
+                                        <span class="metric-label">Max Node Degree:</span>
+                                        <span class="metric-value">{maxNodeDegree}</span>
+                                    </div>
+                                    <div class="metric-item">
+                                        <span class="metric-label">Avg Node Degree:</span>
+                                        <span class="metric-value">{averageNodeDegree}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
+                <!-- Stage Detection Quality -->
+                <template if:true={stageDetectionQuality}>
+                    <div class="quality-panel">
+                        <h3 class="section-title">
+                            <lightning-icon icon-name="utility:data_mapping" size="small"></lightning-icon>
+                            Stage Detection Quality
+                        </h3>
+                        <div class="quality-metrics">
+                            <div class="quality-item">
+                                <span class="quality-label">Detection Accuracy:</span>
+                                <span class="quality-value">{stageDetectionAccuracy}%</span>
+                                <lightning-icon 
+                                    icon-name={accuracyIcon} 
+                                    variant={accuracyVariant} 
+                                    size="x-small">
+                                </lightning-icon>
+                            </div>
+                            <div class="quality-item">
+                                <span class="quality-label">Error Rate:</span>
+                                <span class="quality-value">{errorRate}%</span>
+                            </div>
+                            <div class="quality-item">
+                                <span class="quality-label">Invalid Detections:</span>
+                                <span class="quality-value">{invalidDetections}</span>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </template>
+        </template>
+    </lightning-card>
+</template>

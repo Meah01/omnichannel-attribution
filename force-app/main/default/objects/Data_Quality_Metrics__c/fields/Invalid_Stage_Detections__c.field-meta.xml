@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Invalid_Stage_Detections__c</fullName>
+    <description>Count of invalid stage detections found during Markov Chain attribution processing. Tracks cases where the stage detection algorithm produced invalid or unexpected stage classifications that required correction or fallback handling.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Number of invalid stage detections identified during processing. Lower values indicate better stage detection quality.</inlineHelpText>
+    <label>Invalid Stage Detections</label>
+    <precision>10</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

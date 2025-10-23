@@ -11,9 +11,10 @@
  * - Provides progress tracking and error reporting
  * - Supports both full and incremental processing modes
  * 
- * Author: Omnichannel Attribution Platform
+ * Author: Alexandru Constantinescu (www.linkedin.com/in/alexandru-constantinescu-6a18b6117)
+ * Project: Omnichannel Attribution Platform
  * Date: 2025
- * Version: 1.0
+ * Version: 1.2
  */
 global class FirstTouchAttributionBatch implements Database.Batchable<sObject>, Database.Stateful {
     

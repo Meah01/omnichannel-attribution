@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Stage_Detection_Accuracy__c</fullName>
+    <description>Percentage accuracy of stage detection algorithm in Markov Chain attribution model. Measures how accurately the system detects customer journey stages (Awareness, Interest, Consideration, Conversion, Retention) based on touchpoint context and sequence.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Stage detection accuracy percentage calculated during Markov Chain attribution processing. Higher values indicate more accurate stage classification.</inlineHelpText>
+    <label>Stage Detection Accuracy (%)</label>
+    <precision>5</precision>
+    <required>false</required>
+    <scale>2</scale>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

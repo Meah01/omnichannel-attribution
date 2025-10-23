@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Confidence_Score__c</fullName>
+    <label>Confidence Score</label>
+    <type>Number</type>
+    <precision>5</precision>
+    <scale>3</scale>
+    <required>false</required>
+    <externalId>false</externalId>
+    <unique>false</unique>
+    <description>Confidence score for the transition probability (0.0 to 1.0)</description>
+    <inlineHelpText>Statistical confidence in the calculated transition probability</inlineHelpText>
+</CustomField>

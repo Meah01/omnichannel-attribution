@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <actionOverrides>
+        <actionName>Accept</actionName>
+        <type>Default</type>
+    </actionOverrides>
+    <actionOverrides>
+        <actionName>CancelEdit</actionName>
+        <type>Default</type>
+    </actionOverrides>
+    <actionOverrides>
+        <actionName>Clone</actionName>
+        <type>Default</type>
+    </actionOverrides>
+    <actionOverrides>
+        <actionName>Delete</actionName>
+        <type>Default</type>
+    </actionOverrides>
+    <actionOverrides>
+        <actionName>Edit</actionName>
+        <type>Default</type>
+    </actionOverrides>
+    <actionOverrides>
+        <actionName>List</actionName>
+        <type>Default</type>
+    </actionOverrides>
+    <actionOverrides>
+        <actionName>New</actionName>
+        <type>Default</type>
+    </actionOverrides>
+    <actionOverrides>
+        <actionName>SaveEdit</actionName>
+        <type>Default</type>
+    </actionOverrides>
+    <actionOverrides>
+        <actionName>Tab</actionName>
+        <type>Default</type>
+    </actionOverrides>
+    <actionOverrides>
+        <actionName>View</actionName>
+        <type>Default</type>
+    </actionOverrides>
+    <allowInChatterGroups>false</allowInChatterGroups>
+    <compactLayoutAssignment>SYSTEM</compactLayoutAssignment>
+    <deploymentStatus>Deployed</deploymentStatus>
+    <enableActivities>false</enableActivities>
+    <enableBulkApi>true</enableBulkApi>
+    <enableFeeds>false</enableFeeds>
+    <enableHistory>false</enableHistory>
+    <enableLicensing>false</enableLicensing>
+    <enableReports>true</enableReports>
+    <enableSearch>true</enableSearch>
+    <enableSharing>true</enableSharing>
+    <enableStreamingApi>true</enableStreamingApi>
+    <externalSharingModel>Private</externalSharingModel>
+    <label>Transition Matrix</label>
+    <nameField>
+        <displayFormat>TM-{00000}</displayFormat>
+        <label>Transition Matrix Name</label>
+        <type>AutoNumber</type>
+    </nameField>
+    <pluralLabel>Transition Matrices</pluralLabel>
+    <searchLayouts/>
+    <sharingModel>ReadWrite</sharingModel>
+    <visibility>Public</visibility>
+    
+    <fields>
+        <fullName>From_State__c</fullName>
+        <label>From State</label>
+        <type>Text</type>
+        <length>80</length>
+        <required>true</required>
+        <externalId>false</externalId>
+        <unique>false</unique>
+    </fields>
+    
+    <fields>
+        <fullName>To_State__c</fullName>
+        <label>To State</label>
+        <type>Text</type>
+        <length>80</length>
+        <required>true</required>
+        <externalId>false</externalId>
+        <unique>false</unique>
+    </fields>
+    
+    <fields>
+        <fullName>Probability__c</fullName>
+        <label>Probability</label>
+        <type>Number</type>
+        <precision>10</precision>
+        <scale>8</scale>
+        <required>true</required>
+        <externalId>false</externalId>
+        <unique>false</unique>
+    </fields>
+    
+    <fields>
+        <fullName>Customer_Type__c</fullName>
+        <label>Customer Type</label>
+        <type>Picklist</type>
+        <required>true</required>
+        <externalId>false</externalId>
+        <unique>false</unique>
+        <valueSet>
+            <restricted>true</restricted>
+            <valueSetDefinition>
+                <sorted>false</sorted>
+                <value>
+                    <fullName>B2C</fullName>
+                    <default>false</default>
+                    <label>B2C</label>
+                </value>
+                <value>
+                    <fullName>B2B</fullName>
+                    <default>false</default>
+                    <label>B2B</label>
+                </value>
+            </valueSetDefinition>
+        </valueSet>
+    </fields>
+    
+    <fields>
+        <fullName>Matrix_Version__c</fullName>
+        <label>Matrix Version</label>
+        <type>Text</type>
+        <length>50</length>
+        <required>false</required>
+        <externalId>false</externalId>
+        <unique>false</unique>
+    </fields>
+    
+    <fields>
+        <fullName>Last_Calculated__c</fullName>
+        <label>Last Calculated</label>
+        <type>DateTime</type>
+        <required>false</required>
+        <externalId>false</externalId>
+        <unique>false</unique>
+    </fields>
+    
+    <fields>
+        <fullName>Transition_Count__c</fullName>
+        <label>Transition Count</label>
+        <type>Number</type>
+        <precision>10</precision>
+        <scale>0</scale>
+        <required>false</required>
+        <externalId>false</externalId>
+        <unique>false</unique>
+    </fields>
+    
+    <fields>
+        <fullName>Total_From_State__c</fullName>
+        <label>Total From State</label>
+        <type>Number</type>
+        <precision>10</precision>
+        <scale>0</scale>
+        <required>false</required>
+        <externalId>false</externalId>
+        <unique>false</unique>
+    </fields>
+    
+    <fields>
+        <fullName>Data_Points__c</fullName>
+        <label>Data Points</label>
+        <type>Number</type>
+        <precision>10</precision>
+        <scale>0</scale>
+        <required>false</required>
+        <externalId>false</externalId>
+        <unique>false</unique>
+    </fields>
+    
+    <fields>
+        <fullName>Confidence_Score__c</fullName>
+        <label>Confidence Score</label>
+        <type>Number</type>
+        <precision>5</precision>
+        <scale>3</scale>
+        <required>false</required>
+        <externalId>false</externalId>
+        <unique>false</unique>
+    </fields>
+    
+</CustomObject>
