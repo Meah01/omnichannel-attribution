@@ -820,12 +820,12 @@ jobs:
     steps:
       - name: Generate Workflow Summary
         run: |
-          echo "# ðŸŽ¯ Journey Assembly Workflow Summary" >> $GITHUB_STEP_SUMMARY
+          echo "# Journey Assembly Workflow Summary" >> $GITHUB_STEP_SUMMARY
           echo "**Execution Time**: $(date)" >> $GITHUB_STEP_SUMMARY
           echo "**Authentication Method**: JWT Bearer Flow (Certificate-based)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          echo "## ðŸ“Š Workflow Results" >> $GITHUB_STEP_SUMMARY
+          echo "## Workflow Results" >> $GITHUB_STEP_SUMMARY
           echo "| Stage | Status | Details |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|--------|---------|" >> $GITHUB_STEP_SUMMARY
           echo "| System Check | ${{ needs.check-system-status.result }} | System Enabled: ${{ needs.check-system-status.outputs.system_enabled }} |" >> $GITHUB_STEP_SUMMARY
@@ -840,7 +840,7 @@ jobs:
           echo "- **Benefits**: No security token management, enhanced security" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          echo "## ðŸ”§ Recent Improvements" >> $GITHUB_STEP_SUMMARY
+          echo "## Recent Improvements" >> $GITHUB_STEP_SUMMARY
           echo "- **Journey IDs**: UUID format (journey_abc123) prevents duplicates" >> $GITHUB_STEP_SUMMARY
           echo "- **Duplicate Prevention**: Upsert logic prevents duplicate key errors" >> $GITHUB_STEP_SUMMARY
           echo "- **Data Format**: Compatible with Customer Journey Assembler output" >> $GITHUB_STEP_SUMMARY
