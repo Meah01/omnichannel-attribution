@@ -51,29 +51,29 @@ jobs:
           if [[ "${{ env.JOURNEY_ASSEMBLY_ENABLED }}" == "true" && "${{ env.IMMEDIATE_STOP }}" == "false" ]]; then
             echo "enabled=true" >> $GITHUB_OUTPUT
             echo "status=ready" >> $GITHUB_OUTPUT
-            echo "✅ Journey Assembly System: ENABLED"
+            echo "âœ… Journey Assembly System: ENABLED"
           else
             echo "enabled=false" >> $GITHUB_OUTPUT  
             echo "status=disabled" >> $GITHUB_OUTPUT
-            echo "❌ Journey Assembly System: DISABLED"
+            echo "âŒ Journey Assembly System: DISABLED"
           fi
           
           # Override for manual force run
           if [[ "${{ inputs.force_run }}" == "true" ]]; then
             echo "enabled=true" >> $GITHUB_OUTPUT
             echo "status=force_enabled" >> $GITHUB_OUTPUT
-            echo "⚡ Force run enabled - overriding system status"
+            echo "âš¡ Force run enabled - overriding system status"
           fi
 
       - name: Check Journey Assembler API Health
         if: steps.status-check.outputs.enabled == 'true'
         run: |
-          echo "🔍 Checking Journey Assembler API health..."
+          echo "ðŸ” Checking Journey Assembler API health..."
           
           # Try to reach the assembler API (if running locally, this would need to be adapted)
           # For portfolio demonstration, we'll simulate the check
-          echo "✅ Journey Assembler API: Healthy"
-          echo "✅ System ready for data collection"
+          echo "âœ… Journey Assembler API: Healthy"
+          echo "âœ… System ready for data collection"
 
   data-collection:
     name: Collect Data from All Generators  
@@ -142,7 +142,7 @@ jobs:
           start_str = start_date.strftime('%Y-%m-%d')
           end_str = end_date.strftime('%Y-%m-%d')
           
-          print(f"📅 Collection Period: {start_str} to {end_str}")
+          print(f"ðŸ“… Collection Period: {start_str} to {end_str}")
           
           # Set GitHub outputs
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
@@ -171,9 +171,9 @@ jobs:
           end_date = "${{ steps.dates.outputs.end_date }}"
           max_records = 10000
           
-          print(f"📊 Collecting data from {channel_name.upper()} API...")
-          print(f"🔗 API URL: {api_url}")
-          print(f"📅 Period: {start_date} to {end_date}")
+          print(f"ðŸ“Š Collecting data from {channel_name.upper()} API...")
+          print(f"ðŸ”— API URL: {api_url}")
+          print(f"ðŸ“… Period: {start_date} to {end_date}")
           
           # Prepare API request
           if channel_name == "content_website_seo":
@@ -190,13 +190,13 @@ jobs:
           try:
               # For portfolio demonstration - simulate API call
               # In real implementation, this would make actual HTTP requests
-              print(f"📤 POST {endpoint}")
-              print(f"📦 Payload: {json.dumps(payload, indent=2)}")
+              print(f"ðŸ“¤ POST {endpoint}")
+              print(f"ðŸ“¦ Payload: {json.dumps(payload, indent=2)}")
               
               # Simulate successful collection
               touchpoints_collected = 2500  # Simulated count
               
-              print(f"✅ Successfully collected {touchpoints_collected} touchpoints from {channel_name}")
+              print(f"âœ… Successfully collected {touchpoints_collected} touchpoints from {channel_name}")
               
               # Save results for journey assembly
               results = {
@@ -217,10 +217,10 @@ jobs:
                   f.write(f"success=true\n")
                   f.write(f"touchpoints={touchpoints_collected}\n")
               
-              print(f"✅ Collection complete for {channel_name}")
+              print(f"âœ… Collection complete for {channel_name}")
               
           except Exception as e:
-              print(f"❌ Error collecting data from {channel_name}: {str(e)}")
+              print(f"âŒ Error collecting data from {channel_name}: {str(e)}")
               
               # Set failure outputs
               with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
@@ -242,9 +242,9 @@ jobs:
         if: always()
         run: |
           if [[ "${{ steps.collect-data.outputs.success }}" == "true" ]]; then
-            echo "✅ **${{ matrix.name }}**: ${{ steps.collect-data.outputs.touchpoints }} touchpoints" >> $GITHUB_STEP_SUMMARY
+            echo "âœ… **${{ matrix.name }}**: ${{ steps.collect-data.outputs.touchpoints }} touchpoints" >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ **${{ matrix.name }}**: Collection failed" >> $GITHUB_STEP_SUMMARY
+            echo "âŒ **${{ matrix.name }}**: Collection failed" >> $GITHUB_STEP_SUMMARY
           fi
 
   journey-assembly:
@@ -284,7 +284,7 @@ jobs:
           import os
           from pathlib import Path
           
-          print("🔄 Starting journey assembly process...")
+          print("ðŸ”„ Starting journey assembly process...")
           
           # Load all collection results
           results_dir = Path("collection-results")
@@ -297,25 +297,25 @@ jobs:
                           with open(result_file, "r") as f:
                               data = json.load(f)
                               all_touchpoints.append(data)
-                              print(f"📥 Loaded: {data['channel']} - {data['touchpoints_collected']} touchpoints")
+                              print(f"ðŸ“¥ Loaded: {data['channel']} - {data['touchpoints_collected']} touchpoints")
                       except Exception as e:
-                          print(f"⚠️ Error loading {result_file}: {str(e)}")
+                          print(f"âš ï¸ Error loading {result_file}: {str(e)}")
           
           total_touchpoints = sum(tp['touchpoints_collected'] for tp in all_touchpoints)
-          print(f"📊 Total touchpoints collected: {total_touchpoints}")
+          print(f"ðŸ“Š Total touchpoints collected: {total_touchpoints}")
           
           # Simulate journey assembly API call
           assembler_url = "${{ env.JOURNEY_ASSEMBLER_URL }}"
           
-          print(f"🔗 Journey Assembler URL: {assembler_url}")
-          print(f"📤 Sending touchpoint data for assembly...")
+          print(f"ðŸ”— Journey Assembler URL: {assembler_url}")
+          print(f"ðŸ“¤ Sending touchpoint data for assembly...")
           
           # For portfolio demonstration - simulate assembly
           journeys_assembled = 8500  # Simulated count
           b2c_journeys = 6800
           b2b_journeys = 1700
           
-          print(f"✅ Successfully assembled {journeys_assembled} customer journeys")
+          print(f"âœ… Successfully assembled {journeys_assembled} customer journeys")
           print(f"   - B2C Journeys: {b2c_journeys}")
           print(f"   - B2B Journeys: {b2b_journeys}")
           
@@ -350,7 +350,7 @@ jobs:
           with open("journey_assembly_results.json", "w") as f:
               json.dump(assembly_results, f, indent=2)
           
-          print("💾 Saved journey assembly results")
+          print("ðŸ’¾ Saved journey assembly results")
           
           # Set GitHub outputs
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
@@ -359,7 +359,7 @@ jobs:
               f.write(f"b2c_journeys={b2c_journeys}\n")
               f.write(f"b2b_journeys={b2b_journeys}\n")
           
-          print("✅ Journey assembly complete")
+          print("âœ… Journey assembly complete")
           EOF
 
       - name: Upload Assembly Results
@@ -371,7 +371,7 @@ jobs:
 
       - name: Update Step Summary
         run: |
-          echo "## 🎯 Journey Assembly Results" >> $GITHUB_STEP_SUMMARY
+          echo "## ðŸŽ¯ Journey Assembly Results" >> $GITHUB_STEP_SUMMARY
           echo "**Total Journeys**: ${{ steps.assembly.outputs.journeys_count }}" >> $GITHUB_STEP_SUMMARY
           echo "**B2C Journeys**: ${{ steps.assembly.outputs.b2c_journeys }}" >> $GITHUB_STEP_SUMMARY
           echo "**B2B Journeys**: ${{ steps.assembly.outputs.b2b_journeys }}" >> $GITHUB_STEP_SUMMARY
@@ -537,8 +537,8 @@ jobs:
       - name: Verify Authentication Success
         if: steps.sf-auth.outputs.auth_success != 'true'
         run: |
-          echo "❌ Salesforce JWT authentication failed"
-          echo "🔍 Check the logs above for detailed error information"
+          echo "âŒ Salesforce JWT authentication failed"
+          echo "ðŸ” Check the logs above for detailed error information"
           echo ""
           echo "Common JWT authentication issues:"
           echo "   1. Certificate not uploaded to Salesforce Connected App"
@@ -547,7 +547,7 @@ jobs:
           echo "   4. Username is incorrect or user not authorized"
           echo "   5. Connected App not configured for JWT Bearer Flow"
           echo ""
-          echo "📖 Troubleshooting steps:"
+          echo "ðŸ“– Troubleshooting steps:"
           echo "   - Verify certificate is uploaded in Connected App"
           echo "   - Check 'Enable JWT Bearer Flow' is checked"
           echo "   - Verify GitHub secrets: SALESFORCE_JWT_KEY, SALESFORCE_CONSUMER_KEY, SALESFORCE_USERNAME"
@@ -610,7 +610,7 @@ jobs:
               transformed_journey = {
                   'journeyId': journey.get('journey_id'),
                   'customerId': journey.get('customer_id'),
-                  'journeyType': journey.get('journey_type'),
+                  'customerType': journey.get('journey_type'),
                   'startDate': journey.get('start_date', datetime.now().isoformat()),
                   'endDate': journey.get('end_date', datetime.now().isoformat()),
                   'converted': journey.get('converted', False),
@@ -649,6 +649,7 @@ jobs:
           print(f"   - Root keys: {list(payload.keys())}")
           print(f"   - Journeys count: {len(payload['journeys'])}")
           print(f"   - Metadata keys: {list(payload['metadata'].keys())}")
+          print(f"   - Field mapping: journeyType -> customerType (maps to Customer_Type__c)")
           
           # Prepare API call
           import_url = f"{instance_url}/services/apexrest/attribution/import/journeys"
@@ -735,7 +736,7 @@ jobs:
           import json
           import os
           
-          print("🔍 Verifying Salesforce import...")
+          print("ðŸ” Verifying Salesforce import...")
           
           # Load auth info
           with open("sf_auth.json", "r") as f:
@@ -758,7 +759,7 @@ jobs:
               if response.status_code == 200:
                   status = response.json()
                   
-                  print("✅ Current Salesforce Status:")
+                  print("âœ… Current Salesforce Status:")
                   print(f"   - Total Journeys: {status.get('total_journeys', 0)}")
                   print(f"   - Total Touchpoints: {status.get('total_touchpoints', 0)}")
                   print(f"   - B2C Journeys: {status.get('b2c_journeys', 0)}")
@@ -768,11 +769,11 @@ jobs:
                   print(f"   - Last Import: {status.get('last_import', 'Unknown')}")
                   
               else:
-                  print(f"⚠️ Could not verify status: HTTP {response.status_code}")
+                  print(f"âš ï¸ Could not verify status: HTTP {response.status_code}")
                   print(f"   Response: {response.text[:200]}")
               
           except Exception as e:
-              print(f"⚠️ Verification error: {str(e)}")
+              print(f"âš ï¸ Verification error: {str(e)}")
           EOF
 
       - name: Upload Import Results
@@ -790,7 +791,7 @@ jobs:
         if: always()
         run: |
           if [[ "${{ steps.import-data.outputs.import_success }}" == "true" ]]; then
-            echo "## ✅ Salesforce Import Success" >> $GITHUB_STEP_SUMMARY
+            echo "## âœ… Salesforce Import Success" >> $GITHUB_STEP_SUMMARY
             echo "**Journeys Imported**: ${{ steps.import-data.outputs.journeys_imported }}" >> $GITHUB_STEP_SUMMARY
             echo "**Journey ID Format**: UUID-based format (journey_abc123)" >> $GITHUB_STEP_SUMMARY
             echo "**Upsert Logic**: Updates existing records, inserts new ones" >> $GITHUB_STEP_SUMMARY
@@ -798,9 +799,9 @@ jobs:
             echo "**Status**: Attribution models can now process imported data" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### Authentication Method" >> $GITHUB_STEP_SUMMARY
-            echo "🔐 **JWT Bearer Flow** - Certificate-based authentication" >> $GITHUB_STEP_SUMMARY
+            echo "ðŸ” **JWT Bearer Flow** - Certificate-based authentication" >> $GITHUB_STEP_SUMMARY
           else
-            echo "## ❌ Salesforce Import Failed" >> $GITHUB_STEP_SUMMARY
+            echo "## âŒ Salesforce Import Failed" >> $GITHUB_STEP_SUMMARY
             echo "**Status**: Failed to import journey data" >> $GITHUB_STEP_SUMMARY
             echo "**Action**: Check import logs for error details" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
@@ -819,12 +820,12 @@ jobs:
     steps:
       - name: Generate Workflow Summary
         run: |
-          echo "# 🎯 Journey Assembly Workflow Summary" >> $GITHUB_STEP_SUMMARY
+          echo "# ðŸŽ¯ Journey Assembly Workflow Summary" >> $GITHUB_STEP_SUMMARY
           echo "**Execution Time**: $(date)" >> $GITHUB_STEP_SUMMARY
           echo "**Authentication Method**: JWT Bearer Flow (Certificate-based)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          echo "## 📊 Workflow Results" >> $GITHUB_STEP_SUMMARY
+          echo "## ðŸ“Š Workflow Results" >> $GITHUB_STEP_SUMMARY
           echo "| Stage | Status | Details |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|--------|---------|" >> $GITHUB_STEP_SUMMARY
           echo "| System Check | ${{ needs.check-system-status.result }} | System Enabled: ${{ needs.check-system-status.outputs.system_enabled }} |" >> $GITHUB_STEP_SUMMARY
@@ -833,24 +834,24 @@ jobs:
           echo "| Salesforce Sync | ${{ needs.salesforce-sync.result }} | Imported: ${{ needs.salesforce-sync.outputs.journeys_imported }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          echo "## 🔐 Authentication Upgrade" >> $GITHUB_STEP_SUMMARY
+          echo "## ðŸ” Authentication Upgrade" >> $GITHUB_STEP_SUMMARY
           echo "- **Method**: JWT Bearer Flow (Salesforce v65 compatible)" >> $GITHUB_STEP_SUMMARY
           echo "- **Security**: Certificate-based, password-less authentication" >> $GITHUB_STEP_SUMMARY
           echo "- **Benefits**: No security token management, enhanced security" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          echo "## 🔧 Recent Improvements" >> $GITHUB_STEP_SUMMARY
+          echo "## ðŸ”§ Recent Improvements" >> $GITHUB_STEP_SUMMARY
           echo "- **Journey IDs**: UUID format (journey_abc123) prevents duplicates" >> $GITHUB_STEP_SUMMARY
           echo "- **Duplicate Prevention**: Upsert logic prevents duplicate key errors" >> $GITHUB_STEP_SUMMARY
           echo "- **Data Format**: Compatible with Customer Journey Assembler output" >> $GITHUB_STEP_SUMMARY
           echo "- **Authentication**: Migrated to JWT Bearer Flow for v65 compatibility" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          echo "## ⏰ Next Scheduled Run" >> $GITHUB_STEP_SUMMARY
+          echo "## â° Next Scheduled Run" >> $GITHUB_STEP_SUMMARY
           echo "**Every 3 days at 3:00 AM Amsterdam time**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          echo "## 🎛️ System Control" >> $GITHUB_STEP_SUMMARY
+          echo "## ðŸŽ›ï¸ System Control" >> $GITHUB_STEP_SUMMARY
           echo "- Use 'Manual System Control' workflow to enable/disable processing" >> $GITHUB_STEP_SUMMARY
           echo "- Set repository variables: JOURNEY_ASSEMBLY_ENABLED, IMMEDIATE_STOP" >> $GITHUB_STEP_SUMMARY
           echo "- Emergency stop available via workflow dispatch" >> $GITHUB_STEP_SUMMARY
