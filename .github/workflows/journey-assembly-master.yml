@@ -55,7 +55,7 @@ jobs:
           else
             echo "enabled=false" >> $GITHUB_OUTPUT  
             echo "status=disabled" >> $GITHUB_OUTPUT
-            echo "âŒ Journey Assembly System: DISABLED"
+            echo "Journey Assembly System: DISABLED"
           fi
           
           # Override for manual force run
@@ -68,7 +68,7 @@ jobs:
       - name: Check Journey Assembler API Health
         if: steps.status-check.outputs.enabled == 'true'
         run: |
-          echo "ðŸ” Checking Journey Assembler API health..."
+          echo "Checking Journey Assembler API health..."
           
           # Try to reach the assembler API (if running locally, this would need to be adapted)
           # For portfolio demonstration, we'll simulate the check
@@ -220,7 +220,7 @@ jobs:
               print(f"âœ… Collection complete for {channel_name}")
               
           except Exception as e:
-              print(f"âŒ Error collecting data from {channel_name}: {str(e)}")
+              print(f"Error collecting data from {channel_name}: {str(e)}")
               
               # Set failure outputs
               with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
@@ -244,7 +244,7 @@ jobs:
           if [[ "${{ steps.collect-data.outputs.success }}" == "true" ]]; then
             echo "âœ… **${{ matrix.name }}**: ${{ steps.collect-data.outputs.touchpoints }} touchpoints" >> $GITHUB_STEP_SUMMARY
           else
-            echo "âŒ **${{ matrix.name }}**: Collection failed" >> $GITHUB_STEP_SUMMARY
+            echo " **${{ matrix.name }}**: Collection failed" >> $GITHUB_STEP_SUMMARY
           fi
 
   journey-assembly:
@@ -299,7 +299,7 @@ jobs:
                               all_touchpoints.append(data)
                               print(f"ðŸ“¥ Loaded: {data['channel']} - {data['touchpoints_collected']} touchpoints")
                       except Exception as e:
-                          print(f"âš ï¸ Error loading {result_file}: {str(e)}")
+                          print(f" Error loading {result_file}: {str(e)}")
           
           total_touchpoints = sum(tp['touchpoints_collected'] for tp in all_touchpoints)
           print(f"ðŸ“Š Total touchpoints collected: {total_touchpoints}")
@@ -537,8 +537,8 @@ jobs:
       - name: Verify Authentication Success
         if: steps.sf-auth.outputs.auth_success != 'true'
         run: |
-          echo "âŒ Salesforce JWT authentication failed"
-          echo "ðŸ” Check the logs above for detailed error information"
+          echo "Salesforce JWT authentication failed"
+          echo "Check the logs above for detailed error information"
           echo ""
           echo "Common JWT authentication issues:"
           echo "   1. Certificate not uploaded to Salesforce Connected App"
@@ -736,7 +736,7 @@ jobs:
           import json
           import os
           
-          print("ðŸ” Verifying Salesforce import...")
+          print("Verifying Salesforce import...")
           
           # Load auth info
           with open("sf_auth.json", "r") as f:
@@ -769,11 +769,11 @@ jobs:
                   print(f"   - Last Import: {status.get('last_import', 'Unknown')}")
                   
               else:
-                  print(f"âš ï¸ Could not verify status: HTTP {response.status_code}")
+                  print(f"Could not verify status: HTTP {response.status_code}")
                   print(f"   Response: {response.text[:200]}")
               
           except Exception as e:
-              print(f"âš ï¸ Verification error: {str(e)}")
+              print(f"Verification error: {str(e)}")
           EOF
 
       - name: Upload Import Results
@@ -799,9 +799,9 @@ jobs:
             echo "**Status**: Attribution models can now process imported data" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### Authentication Method" >> $GITHUB_STEP_SUMMARY
-            echo "ðŸ” **JWT Bearer Flow** - Certificate-based authentication" >> $GITHUB_STEP_SUMMARY
+            echo " **JWT Bearer Flow** - Certificate-based authentication" >> $GITHUB_STEP_SUMMARY
           else
-            echo "## âŒ Salesforce Import Failed" >> $GITHUB_STEP_SUMMARY
+            echo "## Salesforce Import Failed" >> $GITHUB_STEP_SUMMARY
             echo "**Status**: Failed to import journey data" >> $GITHUB_STEP_SUMMARY
             echo "**Action**: Check import logs for error details" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
@@ -834,7 +834,7 @@ jobs:
           echo "| Salesforce Sync | ${{ needs.salesforce-sync.result }} | Imported: ${{ needs.salesforce-sync.outputs.journeys_imported }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          echo "## ðŸ” Authentication Upgrade" >> $GITHUB_STEP_SUMMARY
+          echo "## Authentication Upgrade" >> $GITHUB_STEP_SUMMARY
           echo "- **Method**: JWT Bearer Flow (Salesforce v65 compatible)" >> $GITHUB_STEP_SUMMARY
           echo "- **Security**: Certificate-based, password-less authentication" >> $GITHUB_STEP_SUMMARY
           echo "- **Benefits**: No security token management, enhanced security" >> $GITHUB_STEP_SUMMARY
@@ -847,11 +847,11 @@ jobs:
           echo "- **Authentication**: Migrated to JWT Bearer Flow for v65 compatibility" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          echo "## â° Next Scheduled Run" >> $GITHUB_STEP_SUMMARY
+          echo "## Next Scheduled Run" >> $GITHUB_STEP_SUMMARY
           echo "**Every 3 days at 3:00 AM Amsterdam time**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          echo "## ðŸŽ›ï¸ System Control" >> $GITHUB_STEP_SUMMARY
+          echo "## System Control" >> $GITHUB_STEP_SUMMARY
           echo "- Use 'Manual System Control' workflow to enable/disable processing" >> $GITHUB_STEP_SUMMARY
           echo "- Set repository variables: JOURNEY_ASSEMBLY_ENABLED, IMMEDIATE_STOP" >> $GITHUB_STEP_SUMMARY
           echo "- Emergency stop available via workflow dispatch" >> $GITHUB_STEP_SUMMARY
