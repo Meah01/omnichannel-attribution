@@ -413,130 +413,126 @@ jobs:
           SALESFORCE_INSTANCE_URL: ${{ secrets.SALESFORCE_INSTANCE_URL }}
         run: |
           python3 << 'EOF'
-            import jwt
-            import time
-            import requests
-            import base64
-            import os
-            import json
-            
-            print("🔐 Authenticating with Salesforce using JWT Bearer Flow...")
-            
-            # Load JWT credentials
-            private_key_b64 = os.getenv('SALESFORCE_JWT_KEY')
-            consumer_key = os.getenv('SALESFORCE_CONSUMER_KEY')
-            username = os.getenv('SALESFORCE_USERNAME')
-            instance_url = os.getenv('SALESFORCE_INSTANCE_URL')
-            
-            if not all([private_key_b64, consumer_key, username]):
-                print("❌ Missing required JWT credentials!")
-                print(f"   - JWT Key present: {bool(private_key_b64)}")
-                print(f"   - Consumer Key present: {bool(consumer_key)}")
-                print(f"   - Username present: {bool(username)}")
-                exit(1)
-            
-            try:
-                # Decode private key from base64
-                print("🔑 Decoding private key...")
-                private_key = base64.b64decode(private_key_b64).decode('utf-8')
-                
-                # Build JWT claims
-                print("📝 Building JWT claims...")
-                claims = {
-                    'iss': consumer_key,
-                    'sub': username,
-                    'aud': 'https://login.salesforce.com',
-                    'exp': int(time.time()) + 300  # Token expires in 5 minutes
-                }
-                
-                print(f"   - Issuer (Consumer Key): {consumer_key[:20]}...")
-                print(f"   - Subject (Username): {username}")
-                print(f"   - Audience: https://login.salesforce.com")
-                print(f"   - Expiration: {claims['exp']} ({time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(claims['exp']))})")
-                
-                # Create JWT assertion
-                print("🔏 Creating JWT assertion...")
-                assertion = jwt.encode(claims, private_key, algorithm='RS256')
-                print(f"   - Assertion created (length: {len(assertion)} chars)")
-                
-                # Prepare OAuth token request
-                token_url = 'https://login.salesforce.com/services/oauth2/token'
-                payload = {
-                    'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-                    'assertion': assertion
-                }
-                
-                print(f"📤 Requesting access token from: {token_url}")
-                
-                # Request access token
-                response = requests.post(
-                    token_url,
-                    data=payload,
-                    headers={'Content-Type': 'application/x-www-form-urlencoded'},
-                    timeout=30
-                )
-                
-                if response.status_code == 200:
-                    auth_result = response.json()
-                    access_token = auth_result['access_token']
-                    returned_instance_url = auth_result['instance_url']
-                    
-                    print("✅ JWT authentication successful!")
-                    print(f"   - Access Token: {access_token[:20]}... (length: {len(access_token)})")
-                    print(f"   - Instance URL: {returned_instance_url}")
-                    print(f"   - Token Type: {auth_result.get('token_type', 'Bearer')}")
-                    
-                    # Use provided instance URL if available, otherwise use returned URL
-                    final_instance_url = instance_url if instance_url else returned_instance_url
-                    
-                    # Save auth info for subsequent steps
-                    auth_info = {
-                        'access_token': access_token,
-                        'instance_url': final_instance_url,
-                        'token_type': auth_result.get('token_type', 'Bearer'),
-                        'issued_at': auth_result.get('issued_at', str(int(time.time() * 1000)))
-                    }
-                    
-                    with open("sf_auth.json", "w") as f:
-                        json.dump(auth_info, f, indent=2)
-                    
-                    print("💾 Saved authentication info to sf_auth.json")
-                    
-                    # Set GitHub outputs
-                    with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                        f.write(f"auth_success=true\n")
-                        f.write(f"instance_url={final_instance_url}\n")
-                    
-                    print("✅ Authentication complete and ready for data import")
-                    
-                else:
-                    error_data = response.json() if response.headers.get('content-type', '').startswith('application/json') else {}
-                    error_msg = error_data.get('error_description', error_data.get('error', 'Unknown error'))
-                    
-                    print(f"❌ JWT authentication failed!")
-                    print(f"   - Status Code: {response.status_code}")
-                    print(f"   - Error: {error_data.get('error', 'Unknown')}")
-                    print(f"   - Description: {error_msg}")
-                    print(f"   - Response: {response.text[:500]}")
-                    
-                    with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                        f.write(f"auth_success=false\n")
-                    
-                    exit(1)
-                    
-            except Exception as e:
-                print(f"❌ Exception during JWT authentication: {str(e)}")
-                print(f"   - Error type: {type(e).__name__}")
-                
-                import traceback
-                print("📋 Traceback:")
-                traceback.print_exc()
-                
-                with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                    f.write(f"auth_success=false\n")
-                
-                exit(1)
+          import jwt
+          import time
+          import requests
+          import base64
+          import os
+          import json
+          
+          print("Authenticating with Salesforce using JWT Bearer Flow...")
+          
+          # Load JWT credentials
+          private_key_b64 = os.getenv('SALESFORCE_JWT_KEY')
+          consumer_key = os.getenv('SALESFORCE_CONSUMER_KEY')
+          username = os.getenv('SALESFORCE_USERNAME')
+          instance_url = os.getenv('SALESFORCE_INSTANCE_URL')
+          
+          if not all([private_key_b64, consumer_key, username]):
+              print("Missing required JWT credentials!")
+              print(f"   - JWT Key present: {bool(private_key_b64)}")
+              print(f"   - Consumer Key present: {bool(consumer_key)}")
+              print(f"   - Username present: {bool(username)}")
+              exit(1)
+          
+          try:
+              # Decode private key from base64
+              print("Decoding private key...")
+              private_key = base64.b64decode(private_key_b64).decode('utf-8')
+              
+              # Build JWT claims
+              print("Building JWT claims...")
+              claims = {
+                  'iss': consumer_key,
+                  'sub': username,
+                  'aud': 'https://login.salesforce.com',
+                  'exp': int(time.time()) + 300
+              }
+              
+              print(f"   - Issuer (Consumer Key): {consumer_key[:20]}...")
+              print(f"   - Subject (Username): {username}")
+              print(f"   - Audience: https://login.salesforce.com")
+              print(f"   - Expiration: {claims['exp']}")
+              
+              # Create JWT assertion
+              print("Creating JWT assertion...")
+              assertion = jwt.encode(claims, private_key, algorithm='RS256')
+              print(f"   - Assertion created (length: {len(assertion)} chars)")
+              
+              # Prepare OAuth token request
+              token_url = 'https://login.salesforce.com/services/oauth2/token'
+              payload = {
+                  'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+                  'assertion': assertion
+              }
+              
+              print(f"Requesting access token from: {token_url}")
+              
+              # Request access token
+              response = requests.post(
+                  token_url,
+                  data=payload,
+                  headers={'Content-Type': 'application/x-www-form-urlencoded'},
+                  timeout=30
+              )
+              
+              if response.status_code == 200:
+                  auth_result = response.json()
+                  access_token = auth_result['access_token']
+                  returned_instance_url = auth_result['instance_url']
+                  
+                  print("JWT authentication successful!")
+                  print(f"   - Access Token: {access_token[:20]}...")
+                  print(f"   - Instance URL: {returned_instance_url}")
+                  
+                  final_instance_url = instance_url if instance_url else returned_instance_url
+                  
+                  # Save auth info
+                  auth_info = {
+                      'access_token': access_token,
+                      'instance_url': final_instance_url,
+                      'token_type': auth_result.get('token_type', 'Bearer'),
+                      'issued_at': auth_result.get('issued_at', str(int(time.time() * 1000)))
+                  }
+                  
+                  with open("sf_auth.json", "w") as f:
+                      json.dump(auth_info, f, indent=2)
+                  
+                  print("Saved authentication info to sf_auth.json")
+                  
+                  # Set GitHub outputs
+                  with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                      f.write(f"auth_success=true\n")
+                      f.write(f"instance_url={final_instance_url}\n")
+                  
+                  print("Authentication complete")
+                  
+              else:
+                  error_data = response.json() if response.headers.get('content-type', '').startswith('application/json') else {}
+                  
+                  print(f"JWT authentication failed!")
+                  print(f"   - Status Code: {response.status_code}")
+                  print(f"   - Error: {error_data.get('error', 'Unknown')}")
+                  print(f"   - Description: {error_data.get('error_description', 'Unknown')}")
+                  
+                  with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                      f.write(f"auth_success=false\n")
+                  
+                  exit(1)
+                  
+          except Exception as e:
+              print(f"Exception during JWT authentication: {str(e)}")
+              
+              import traceback
+              print("Traceback:")
+              traceback.print_exc()
+              
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                  f.write(f"auth_success=false\n")
+              
+              exit(1)
           EOF
+    
 
       - name: Verify Authentication Success
         if: steps.sf-auth.outputs.auth_success != 'true'
