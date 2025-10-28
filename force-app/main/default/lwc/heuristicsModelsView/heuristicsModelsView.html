@@ -54,8 +54,7 @@
                 <lightning-card title="Channel Attribution Percentages" icon-name="utility:chart" class="chart-card">
                     <div class="chart-container" data-chart="attribution-breakdown">
                         <canvas 
-                            lwc:ref="attributionChart" 
-                            class="chart-canvas"
+                            class="chart-canvas attribution-chart"
                             width="540" 
                             height="300">
                         </canvas>
@@ -81,8 +80,7 @@
                 <lightning-card title="Attribution Over Time in Percentage" icon-name="utility:trending" class="chart-card">
                     <div class="chart-container" data-chart="attribution-timeline">
                         <canvas 
-                            lwc:ref="timelineChart" 
-                            class="chart-canvas"
+                            class="chart-canvas timeline-chart"
                             width="540" 
                             height="300">
                         </canvas>
@@ -160,8 +158,7 @@
                 <lightning-card title="Journey Performance Impact" icon-name="utility:apps" class="chart-card">
                     <div class="chart-container" data-chart="journey-performance">
                         <canvas 
-                            lwc:ref="journeyChart" 
-                            class="chart-canvas"
+                            class="chart-canvas journey-chart"
                             width="540" 
                             height="300">
                         </canvas>

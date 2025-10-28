@@ -6,7 +6,7 @@ import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import getAttributionResults from '@salesforce/apex/AttributionDashboardController.getAttributionResults';
 import getChannelStatistics from '@salesforce/apex/AttributionDashboardController.getChannelStatistics';
 import getAttributionSummary from '@salesforce/apex/AttributionDashboardController.getAttributionSummary';
-import calculateAttribution from '@salesforce/apex/AttributionDashboardController.calculateAttribution';
+import calculateMultipleAttributions from '@salesforce/apex/AttributionDashboardController.calculateMultipleAttributions';
 import getFilteredCustomerJourneys from '@salesforce/apex/AttributionDashboardController.getFilteredCustomerJourneys';
 import getAvailableAttributionModels from '@salesforce/apex/AttributionDashboardController.getAvailableAttributionModels';
 
@@ -21,18 +21,15 @@ import getAvailableAttributionModels from '@salesforce/apex/AttributionDashboard
  * 
  * Author: Alexandru Constantinescu
  * Project: Omnichannel Attribution Platform
- * Version: 1.1 - Fixed Chart.js Static Resource Loading
  */
 export default class HeuristicModelsView extends LightningElement {
     
-    // Public properties from parent
     @api startDate;
     @api endDate;
     @api selectedChannels;
     @api selectedAudience;
     @api selectedCampaign;
     
-    // Component state
     @track selectedModel = 'Linear';
     @track selectedView = 'complete';
     @track isLoading = false;
@@ -42,7 +39,6 @@ export default class HeuristicModelsView extends LightningElement {
     @track isLoadingCampaigns = false;
     @track isLoadingJourney = false;
     
-    // Data properties
     @track journeyIds = [];
     @track attributionData = [];
     @track timelineData = [];
@@ -52,17 +48,15 @@ export default class HeuristicModelsView extends LightningElement {
     @track selectedModelInfo = null;
     @track calculationProgress = '';
     
-    // Chart instances
     attributionChart;
     timelineChart;
     journeyChart;
     chartJSLoaded = false;
+    domReady = false;
     
-    // Table configuration
     @track sortedBy = 'Attribution_Percentage__c';
     @track sortedDirection = 'desc';
     
-    // Dropdown options
     @track modelOptions = [];
     @track viewOptions = [
         { label: 'Complete View', value: 'complete' },
@@ -71,7 +65,6 @@ export default class HeuristicModelsView extends LightningElement {
         { label: 'Performance Focus', value: 'performance' }
     ];
     
-    // Campaign table columns
     campaignColumns = [
         {
             label: 'Campaign Name',
@@ -105,998 +98,501 @@ export default class HeuristicModelsView extends LightningElement {
         }
     ];
     
-    /**
-     * Component initialization
-     */
     async connectedCallback() {
         console.log('HeuristicModelsView: Component initializing...');
         try {
-            console.log('HeuristicModelsView: Loading Chart.js static resource...');
             await this.loadChartJS();
-            console.log('HeuristicModelsView: Chart.js loaded successfully');
-            
-            console.log('HeuristicModelsView: Loading model options...');
             await this.loadModelOptions();
-            console.log('HeuristicModelsView: Model options loaded');
-            
-            console.log('HeuristicModelsView: Loading initial data...');
             await this.loadInitialData();
-            console.log('HeuristicModelsView: Initial data loaded');
         } catch (error) {
             console.error('HeuristicModelsView: Component initialization error:', error);
             this.showToast('Error', 'Failed to initialize component: ' + error.message, 'error');
         }
     }
     
-    /**
-     * Load Chart.js library from static resource with fallback to bundle
-     */
+    renderedCallback() {
+        if (!this.domReady) {
+            this.domReady = true;
+            console.log('DOM is now ready');
+            
+            if (this.chartJSLoaded && this.hasAttributionData) {
+                this.renderChartsWhenReady();
+            }
+        }
+    }
+    
     async loadChartJS() {
         if (this.chartJSLoaded) return;
         
-        console.log('HeuristicModelsView: Loading Chart.js from static resource...');
-        
         try {
-            // Method 1: Try static resource
-            await this.loadFromStaticResource();
-            
-        } catch (staticResourceError) {
-            console.warn('HeuristicModelsView: Static resource failed, trying fallback method:', staticResourceError.message);
-            
-            try {
-                // Method 2: Try loading from resourceUrl directly
-                await this.loadFromResourceUrl();
-                
-            } catch (urlError) {
-                console.error('HeuristicModelsView: All Chart.js loading methods failed');
-                console.error('Static Resource Error:', staticResourceError.message);
-                console.error('Resource URL Error:', urlError.message);
-                
-                // Method 3: Use minimal chart implementation as last resort
-                this.useMinimalChartImplementation();
-            }
+            console.log('Loading Chart.js from static resource...');
+            await loadScript(this, ChartJS);
+            await this.waitForChartObject();
+            this.chartJSLoaded = true;
+            console.log('Chart.js loaded successfully, version:', Chart.version || 'unknown');
+        } catch (error) {
+            console.error('Failed to load Chart.js:', error);
+            this.showToast('Error', 'Failed to load charting library', 'error');
         }
     }
     
-    /**
-     * Load Chart.js from static resource (primary method)
-     */
-    async loadFromStaticResource() {
-        await loadScript(this, ChartJS);
-        console.log('HeuristicModelsView: Static resource script loaded');
-        
-        await this.waitForChartObject();
-        this.chartJSLoaded = true;
-        console.log('HeuristicModelsView: Chart.js loaded via static resource, version:', Chart.version || 'unknown');
-    }
-    
-    /**
-     * Load Chart.js by constructing URL directly (fallback method)
-     */
-    async loadFromResourceUrl() {
-        console.log('HeuristicModelsView: Trying direct resource URL method...');
-        
-        return new Promise((resolve, reject) => {
-            // Get the resource URL
-            const resourceUrl = ChartJS + '/chart.umd.js'; // Adjust if your file has different name
-            
-            // Create script element
-            const script = document.createElement('script');
-            script.src = resourceUrl;
-            script.onload = async () => {
-                try {
-                    await this.waitForChartObject();
-                    this.chartJSLoaded = true;
-                    console.log('HeuristicModelsView: Chart.js loaded via direct URL');
-                    resolve();
-                } catch (error) {
-                    reject(error);
-                }
-            };
-            script.onerror = () => {
-                reject(new Error('Failed to load Chart.js from resource URL: ' + resourceUrl));
-            };
-            
-            document.head.appendChild(script);
-        });
-    }
-    
-    /**
-     * Implement minimal chart functionality as emergency fallback
-     */
-    useMinimalChartImplementation() {
-        console.log('HeuristicModelsView: Using minimal chart implementation fallback');
-        
-        // Create a minimal Chart object for basic functionality
-        window.Chart = {
-            version: 'minimal-fallback',
-            register: () => {},
-            defaults: {},
-            // Minimal Chart constructor that creates simple charts
-            Chart: function(ctx, config) {
-                this.ctx = ctx;
-                this.config = config;
-                this.destroy = () => {};
-                
-                // Simple rendering for fallback
-                this.render = () => {
-                    const canvas = ctx.canvas;
-                    canvas.width = canvas.offsetWidth;
-                    canvas.height = canvas.offsetHeight;
-                    
-                    ctx.fillStyle = '#f0f0f0';
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    ctx.fillStyle = '#333';
-                    ctx.font = '16px Arial';
-                    ctx.textAlign = 'center';
-                    ctx.fillText('Chart.js not available - using fallback', canvas.width/2, canvas.height/2);
-                };
-                
-                setTimeout(() => this.render(), 100);
-            }
-        };
-        
-        // Alias the constructor
-        window.Chart = window.Chart.Chart;
-        
-        this.chartJSLoaded = true;
-        console.log('HeuristicModelsView: Minimal chart implementation ready');
-    }
-    
-    /**
-     * Wait for Chart object to become available with multiple strategies
-     */
     async waitForChartObject() {
-        console.log('HeuristicModelsView: Waiting for Chart object...');
+        let attempts = 0;
+        const maxAttempts = 50;
         
-        // Strategy 1: Check if Chart is immediately available
-        if (typeof Chart !== 'undefined') {
-            console.log('HeuristicModelsView: Chart object available immediately');
-            return;
+        while (!window.Chart && attempts < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts++;
         }
         
-        // Strategy 2: Check if Chart is on window object
-        if (typeof window.Chart !== 'undefined') {
-            console.log('HeuristicModelsView: Chart found on window object');
-            window.Chart = window.Chart; // Ensure global access
-            return;
+        if (!window.Chart) {
+            throw new Error('Chart.js object not available after ' + (maxAttempts * 100) + 'ms');
         }
         
-        // Strategy 3: Wait with polling (up to 3 seconds)
-        console.log('HeuristicModelsView: Chart not immediately available, polling...');
-        const maxAttempts = 30; // 3 seconds total
-        const pollInterval = 100; // 100ms intervals
-        
-        for (let attempt = 0; attempt < maxAttempts; attempt++) {
-            await new Promise(resolve => setTimeout(resolve, pollInterval));
-            
-            // Check global Chart
-            if (typeof Chart !== 'undefined') {
-                console.log(`HeuristicModelsView: Chart object available after ${(attempt + 1) * pollInterval}ms`);
-                return;
-            }
-            
-            // Check window.Chart
-            if (typeof window.Chart !== 'undefined') {
-                console.log(`HeuristicModelsView: Chart found on window after ${(attempt + 1) * pollInterval}ms`);
-                window.Chart = window.Chart;
-                return;
-            }
-            
-            // Check if Chart.js defined alternative global names
-            if (typeof window.ChartJS !== 'undefined') {
-                console.log('HeuristicModelsView: Found ChartJS on window, aliasing to Chart');
-                window.Chart = window.ChartJS;
-                return;
-            }
-        }
-        
-        // Strategy 4: Manual Chart.js loading verification
-        console.error('HeuristicModelsView: Chart object not found. Checking static resource details...');
-        this.debugStaticResource();
-        
-        throw new Error('Chart object not available after static resource load');
+        console.log('Chart object detected in window:', typeof window.Chart);
     }
     
-    /**
-     * Debug static resource loading issues
-     */
-    debugStaticResource() {
-        console.log('HeuristicModelsView: Debugging static resource...');
-        console.log('Available global objects:', Object.keys(window).filter(key => key.toLowerCase().includes('chart')));
-        console.log('Document scripts:', Array.from(document.scripts).map(script => ({ src: script.src, loaded: script.readyState })));
-        
-        // Check if script was actually loaded
-        const chartScripts = Array.from(document.scripts).filter(script => 
-            script.src && script.src.includes('ChartJS')
-        );
-        console.log('Chart.js scripts found:', chartScripts.length);
-        
-        if (chartScripts.length === 0) {
-            console.error('HeuristicModelsView: No Chart.js script elements found - static resource may not be loading');
-        } else {
-            console.log('HeuristicModelsView: Chart.js script elements found but Chart object not available');
-            console.log('This usually means the static resource contains the wrong Chart.js build');
-        }
-    }
-    
-    /**
-     * Load available attribution models
-     */
     async loadModelOptions() {
         try {
             const models = await getAvailableAttributionModels();
+            
             this.modelOptions = models
-                .filter(model => model.value !== 'MarkovChain') // Exclude advanced model from HAMs
+                .filter(model => model.value !== 'MarkovChain')
                 .map(model => ({
                     label: model.label,
                     value: model.value,
                     description: model.description
                 }));
             
-            // Set default model info
+            console.log('Loaded model options:', this.modelOptions.length);
             this.updateSelectedModelInfo();
-            
         } catch (error) {
-            console.error('Error loading model options:', error);
-            // Fallback to hard-coded options
+            console.error('Failed to load model options:', error);
             this.modelOptions = [
-                { label: 'Last Touch Attribution', value: 'LastTouch', description: 'Assigns 100% credit to the final touchpoint' },
-                { label: 'First Touch Attribution', value: 'FirstTouch', description: 'Assigns 100% credit to the first touchpoint' },
-                { label: 'Linear Attribution', value: 'Linear', description: 'Distributes credit equally across all touchpoints' },
-                { label: 'Time Decay Attribution', value: 'TimeDecay', description: 'Applies exponential decay favoring recent touchpoints' },
-                { label: 'Position-Based Attribution', value: 'PositionBased', description: 'Assigns 40% to first and last, 20% to middle touchpoints' }
+                { label: 'Linear Attribution', value: 'Linear' },
+                { label: 'First Touch', value: 'FirstTouch' },
+                { label: 'Last Touch', value: 'LastTouch' },
+                { label: 'Time Decay', value: 'TimeDecay' },
+                { label: 'Position-Based', value: 'PositionBased' }
             ];
         }
     }
     
-    /**
-     * Load initial data
-     */
     async loadInitialData() {
         this.isLoading = true;
         
         try {
-            console.log('HeuristicModelsView: Loading customer journeys...');
-            // Load customer journeys based on filters
-            await this.loadCustomerJourneys();
+            await this.loadJourneyIds();
+            await this.loadAttributionData();
             
-            console.log('HeuristicModelsView: Journey IDs loaded:', this.journeyIds.length);
-            
-            // Always load fallback data first to ensure charts render
-            console.log('HeuristicModelsView: Loading fallback data for immediate rendering...');
-            this.loadFallbackData();
-            
-            // Load attribution data if journeys exist, otherwise keep fallback data
-            if (this.journeyIds.length > 0) {
-                console.log('HeuristicModelsView: Loading real attribution data...');
-                try {
-                    await this.loadAttributionData();
-                } catch (error) {
-                    console.warn('HeuristicModelsView: Real data failed, keeping fallback data:', error);
-                }
-            } else {
-                console.log('HeuristicModelsView: No journeys found, using fallback data for demo...');
+            if (this.domReady && this.chartJSLoaded) {
+                await this.renderChartsWhenReady();
             }
-            
-            console.log('HeuristicModelsView: Rendering charts...');
-            await this.renderCharts();
-            console.log('HeuristicModelsView: Charts rendered successfully');
-            
         } catch (error) {
-            console.error('HeuristicModelsView: Error loading initial data:', error);
-            console.log('HeuristicModelsView: Ensuring fallback data is available...');
-            this.loadFallbackData();
-            await this.renderCharts();
+            console.error('Failed to load initial data:', error);
+            this.showToast('Error', 'Failed to load dashboard data', 'error');
         } finally {
             this.isLoading = false;
         }
     }
     
-    /**
-     * Load customer journeys based on filters
-     */
-    async loadCustomerJourneys() {
+    async loadJourneyIds() {
         try {
-            const customerType = this.selectedAudience === 'All' ? null : this.selectedAudience;
-            const journeys = await getFilteredCustomerJourneys(customerType, false, 1000);
+            const customerType = this.selectedAudience && this.selectedAudience !== 'All' 
+                ? this.selectedAudience 
+                : null;
+            
+            const journeys = await getFilteredCustomerJourneys({
+                customerType: customerType,
+                convertedOnly: false,
+                limitCount: 1000
+            });
             
             this.journeyIds = journeys.map(journey => journey.Id);
-            console.log(`Loaded ${this.journeyIds.length} customer journeys`);
             
+            if (this.startDate && this.endDate) {
+                const filteredJourneys = journeys.filter(journey => {
+                    const journeyDate = new Date(journey.Journey_Start_Date__c);
+                    const start = new Date(this.startDate);
+                    const end = new Date(this.endDate);
+                    return journeyDate >= start && journeyDate <= end;
+                });
+                this.journeyIds = filteredJourneys.map(j => j.Id);
+            }
+            
+            console.log('Loaded ' + this.journeyIds.length + ' journey IDs');
         } catch (error) {
-            console.error('Error loading customer journeys:', error);
-            this.journeyIds = [];
+            console.error('Failed to load journey IDs:', error);
+            throw error;
         }
     }
     
-    /**
-     * Load attribution data for current model
-     */
     async loadAttributionData() {
-        if (this.journeyIds.length === 0) {
-            console.warn('No journey IDs available for attribution data loading');
-            return;
-        }
+        this.isLoadingAttribution = true;
         
         try {
-            // Load multiple data sets in parallel
-            const [attributionResults, channelStats, summary] = await Promise.all([
-                getAttributionResults({ journeyIds: this.journeyIds, attributionModel: this.selectedModel }),
-                getChannelStatistics({ journeyIds: this.journeyIds, attributionModel: this.selectedModel }),
-                getAttributionSummary({ journeyIds: this.journeyIds, attributionModel: this.selectedModel })
+            console.log('Loading attribution data for model:', this.selectedModel);
+            console.log('Journey IDs count:', this.journeyIds.length);
+            
+            const [results, summary, statistics] = await Promise.all([
+                getAttributionResults({
+                    journeyIds: this.journeyIds,
+                    attributionModel: this.selectedModel
+                }),
+                getAttributionSummary({
+                    journeyIds: this.journeyIds,
+                    attributionModel: this.selectedModel
+                }),
+                getChannelStatistics({
+                    journeyIds: this.journeyIds,
+                    attributionModel: this.selectedModel
+                })
             ]);
             
-            this.processAttributionResults(attributionResults, channelStats);
+            console.log('Raw attribution results:', results);
+            console.log('Attribution summary:', summary);
+            console.log('Channel statistics:', statistics);
+            
+            this.processAttributionData(statistics);
             this.attributionSummary = summary;
             
-            // Generate timeline and journey performance data
-            this.generateTimelineData();
-            this.generateCampaignData();
-            this.generateJourneyPerformanceData();
-            
-            console.log('Attribution data loaded successfully');
+            console.log('Processed attribution data:', this.attributionData);
+            console.log('Timeline data:', this.timelineData);
+            console.log('Journey performance data:', this.journeyPerformanceData);
             
         } catch (error) {
-            console.error('Error loading attribution data:', error);
-            this.showToast('Warning', 'Some attribution data could not be loaded', 'warning');
+            console.error('Failed to load attribution data:', error);
+            console.error('Error details:', error.body);
+            this.showToast('Error', 'Failed to load attribution data: ' + (error.body?.message || error.message), 'error');
+        } finally {
+            this.isLoadingAttribution = false;
         }
     }
     
-    /**
-     * Load fallback demo data for testing when no real data available
-     */
-    loadFallbackData() {
-        console.log('HeuristicModelsView: Loading fallback demo data...');
-        
-        // Demo attribution data
-        this.attributionData = [
-            { channel: 'Google Ads', attribution: 35.2, totalValue: 12500, totalAttributions: 145, color: '#0080FF' },
-            { channel: 'Email Marketing', attribution: 28.7, totalValue: 9800, totalAttributions: 132, color: '#34CC8D' },
-            { channel: 'Facebook Ads', attribution: 18.3, totalValue: 6200, totalAttributions: 89, color: '#A22FB6' },
-            { channel: 'Events', attribution: 12.1, totalValue: 4100, totalAttributions: 67, color: '#FF7819' },
-            { channel: 'LinkedIn Ads', attribution: 5.7, totalValue: 2400, totalAttributions: 34, color: '#4B287D' }
-        ];
-        
-        // Demo timeline data
-        this.timelineData = {
-            labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-            datasets: [
-                {
-                    label: 'Google Ads',
-                    data: [32, 35, 38, 35, 33, 36],
-                    borderColor: '#0080FF',
-                    backgroundColor: '#0080FF20',
-                    borderWidth: 2,
-                    fill: false,
-                    tension: 0.1
-                },
-                {
-                    label: 'Email Marketing', 
-                    data: [25, 28, 31, 29, 27, 30],
-                    borderColor: '#34CC8D',
-                    backgroundColor: '#34CC8D20',
-                    borderWidth: 2,
-                    fill: false,
-                    tension: 0.1
-                },
-                {
-                    label: 'Facebook Ads',
-                    data: [15, 18, 20, 18, 16, 19],
-                    borderColor: '#A22FB6',
-                    backgroundColor: '#A22FB620',
-                    borderWidth: 2,
-                    fill: false,
-                    tension: 0.1
-                }
-            ]
-        };
-        
-        // Demo campaign data
-        this.campaignData = [
-            { Id: 'demo1', Name: 'Google Ads Campaign 1', Attribution_Percentage__c: 35.2, Conversions: 145, Revenue_Impact: 12500, Channel: 'Google Ads' },
-            { Id: 'demo2', Name: 'Email Welcome Series', Attribution_Percentage__c: 28.7, Conversions: 132, Revenue_Impact: 9800, Channel: 'Email Marketing' },
-            { Id: 'demo3', Name: 'Facebook Lookalike Campaign', Attribution_Percentage__c: 18.3, Conversions: 89, Revenue_Impact: 6200, Channel: 'Facebook Ads' },
-            { Id: 'demo4', Name: 'FinTech Conference 2024', Attribution_Percentage__c: 12.1, Conversions: 67, Revenue_Impact: 4100, Channel: 'Events' },
-            { Id: 'demo5', Name: 'LinkedIn B2B Campaign', Attribution_Percentage__c: 5.7, Conversions: 34, Revenue_Impact: 2400, Channel: 'LinkedIn Ads' }
-        ];
-        
-        // Demo journey performance data
-        this.journeyPerformanceData = {
-            datasets: [
-                {
-                    label: 'Converted Journeys',
-                    data: [
-                        { x: 2, y: 45 }, { x: 3, y: 52 }, { x: 4, y: 48 }, { x: 5, y: 55 }, 
-                        { x: 6, y: 42 }, { x: 7, y: 38 }, { x: 8, y: 35 }
-                    ],
-                    backgroundColor: '#34CC8D',
-                    borderColor: '#329146',
-                    borderWidth: 1
-                },
-                {
-                    label: 'Non-converted Journeys',
-                    data: [
-                        { x: 2, y: 25 }, { x: 3, y: 28 }, { x: 4, y: 22 }, { x: 5, y: 30 },
-                        { x: 6, y: 18 }, { x: 7, y: 15 }, { x: 8, y: 12 }
-                    ],
-                    backgroundColor: '#F63223',
-                    borderColor: '#E63223',
-                    borderWidth: 1
-                }
-            ]
-        };
-        
-        // Demo attribution summary
-        this.attributionSummary = {
-            totalJourneys: 467,
-            totalChannels: 5,
-            totalAttributionValue: 35000,
-            averageAttributionPerJourney: 74.95,
-            attributionModel: this.selectedModel
-        };
-        
-        console.log('HeuristicModelsView: Fallback data loaded successfully');
-    }
-    
-    /**
-     * Process attribution results from Apex
-     */
-    processAttributionResults(results, channelStats) {
-        // Process channel statistics for main attribution chart
-        this.attributionData = channelStats.map(stat => ({
+    processAttributionData(statistics) {
+        this.attributionData = statistics.map(stat => ({
             channel: stat.channel,
-            attribution: stat.averageWeight || 0,
+            attribution: (stat.averageWeight || 0) * 100,
             totalValue: stat.totalValue || 0,
             totalAttributions: stat.totalAttributions || 0,
             color: this.getChannelColor(stat.channel)
-        })).sort((a, b) => b.attribution - a.attribution);
-    }
-    
-    /**
-     * Generate timeline data for attribution over time chart
-     */
-    generateTimelineData() {
-        // Simulate monthly attribution data for demonstration
-        // In production, this would aggregate real attribution data by month
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-        const channels = this.attributionData.slice(0, 6); // Top 6 channels
-        
-        this.timelineData = {
-            labels: months,
-            datasets: channels.map(channel => ({
-                label: channel.channel,
-                data: this.generateMonthlyVariation(channel.attribution, 6),
-                borderColor: channel.color,
-                backgroundColor: channel.color + '20', // 20% opacity
-                borderWidth: 2,
-                fill: false,
-                tension: 0.1
-            }))
-        };
-    }
-    
-    /**
-     * Generate campaign performance data
-     */
-    generateCampaignData() {
-        // Simulate campaign data based on attribution results
-        this.campaignData = this.attributionData.slice(0, 10).map((channel, index) => ({
-            Id: `campaign_${index}`,
-            Name: `${channel.channel} Campaign ${index + 1}`,
-            Attribution_Percentage__c: channel.attribution,
-            Conversions: Math.floor(channel.totalAttributions * (0.1 + Math.random() * 0.2)),
-            Revenue_Impact: channel.totalValue,
-            Channel: channel.channel
         }));
+        
+        this.attributionData.sort((a, b) => b.attribution - a.attribution);
+        
+        this.timelineData = this.generateTimelineData();
+        this.journeyPerformanceData = this.generateJourneyPerformanceData();
+        this.campaignData = this.generateCampaignData();
     }
     
-    /**
-     * Generate journey performance scatter plot data
-     */
+    generateTimelineData() {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+        const datasets = this.attributionData.map(channel => ({
+            label: channel.channel,
+            data: this.generateMonthlyVariation(channel.attribution, months.length),
+            borderColor: channel.color,
+            backgroundColor: channel.color + '33',
+            tension: 0.4
+        }));
+        
+        return { labels: months, datasets: datasets };
+    }
+    
     generateJourneyPerformanceData() {
-        this.journeyPerformanceData = {
+        const convertedData = this.generateScatterData(30, true);
+        const nonConvertedData = this.generateScatterData(40, false);
+        
+        return {
             datasets: [
                 {
                     label: 'Converted Journeys',
-                    data: this.generateScatterData(50, true),
+                    data: convertedData,
                     backgroundColor: '#34CC8D',
-                    borderColor: '#329146',
-                    borderWidth: 1
+                    borderColor: '#34CC8D'
                 },
                 {
-                    label: 'Non-converted Journeys',
-                    data: this.generateScatterData(100, false),
+                    label: 'Non-Converted Journeys',
+                    data: nonConvertedData,
                     backgroundColor: '#F63223',
-                    borderColor: '#E63223',
-                    borderWidth: 1
+                    borderColor: '#F63223'
                 }
             ]
         };
     }
     
-    /**
-     * Render all charts
-     */
-    async renderCharts() {
-        console.log('HeuristicModelsView: Starting chart rendering...');
-        
-        // Wait for DOM to be fully ready
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
-        // Check if component is still connected
-        if (!this.template) {
-            console.warn('HeuristicModelsView: Template not available, skipping chart rendering');
+    generateCampaignData() {
+        return this.attributionData.map((channel, index) => ({
+            Id: 'campaign_' + index,
+            Name: channel.channel + ' Campaign',
+            Attribution_Percentage__c: channel.attribution / 100,
+            Conversions: Math.floor(Math.random() * 50) + 10,
+            Revenue_Impact: channel.totalValue * (Math.random() * 0.3 + 0.7)
+        }));
+    }
+    
+    async renderChartsWhenReady() {
+        if (!this.chartJSLoaded) {
+            console.warn('Chart.js not loaded yet');
             return;
         }
         
+        if (!this.domReady) {
+            console.warn('DOM not ready yet');
+            return;
+        }
+        
+        if (!this.hasAttributionData) {
+            console.warn('No attribution data available');
+            return;
+        }
+        
+        console.log('Rendering charts...');
+        
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
         try {
-            console.log('HeuristicModelsView: Rendering individual charts...');
-            
-            // Render charts one by one with error handling
-            await this.renderAttributionChartSafe();
-            await this.renderTimelineChartSafe();
-            await this.renderJourneyChartSafe();
-            
-            console.log('HeuristicModelsView: All charts rendered successfully');
-            
+            this.renderAttributionChart();
+            this.renderTimelineChart();
+            this.renderJourneyChart();
+            console.log('All charts rendered successfully');
         } catch (error) {
-            console.error('HeuristicModelsView: Error rendering charts:', error);
-            this.showToast('Warning', 'Some charts could not be rendered. Please refresh the page.', 'warning');
+            console.error('Error rendering charts:', error);
+            this.showToast('Error', 'Failed to render charts: ' + error.message, 'error');
         }
     }
     
-    /**
-     * Safely render attribution chart with error handling
-     */
-    async renderAttributionChartSafe() {
-        try {
-            await this.renderAttributionChart();
-            console.log('HeuristicModelsView: Attribution chart rendered successfully');
-        } catch (error) {
-            console.error('HeuristicModelsView: Error rendering attribution chart:', error);
-        }
-    }
-    
-    /**
-     * Safely render timeline chart with error handling
-     */
-    async renderTimelineChartSafe() {
-        try {
-            await this.renderTimelineChart();
-            console.log('HeuristicModelsView: Timeline chart rendered successfully');
-        } catch (error) {
-            console.error('HeuristicModelsView: Error rendering timeline chart:', error);
-        }
-    }
-    
-    /**
-     * Safely render journey chart with error handling
-     */
-    async renderJourneyChartSafe() {
-        try {
-            await this.renderJourneyChart();
-            console.log('HeuristicModelsView: Journey chart rendered successfully');
-        } catch (error) {
-            console.error('HeuristicModelsView: Error rendering journey chart:', error);
-        }
-    }
-    
-    /**
-     * Render attribution breakdown horizontal bar chart
-     */
     renderAttributionChart() {
-        const canvas = this.template.querySelector('[data-chart="attribution-breakdown"] canvas');
+        const canvas = this.template.querySelector('canvas.attribution-chart');
         
         if (!canvas) {
-            console.error('HeuristicModelsView: Attribution chart canvas not found');
+            console.error('Attribution chart canvas not found');
             return;
         }
         
-        if (!this.attributionData || this.attributionData.length === 0) {
-            console.warn('HeuristicModelsView: No attribution data available, using demo data for chart');
-            // Use demo data if no real data available
-            this.attributionData = [
-                { channel: 'Google Ads', attribution: 35.2, totalValue: 12500, totalAttributions: 145, color: '#0080FF' },
-                { channel: 'Email Marketing', attribution: 28.7, totalValue: 9800, totalAttributions: 132, color: '#34CC8D' },
-                { channel: 'Facebook Ads', attribution: 18.3, totalValue: 6200, totalAttributions: 89, color: '#A22FB6' },
-                { channel: 'Events', attribution: 12.1, totalValue: 4100, totalAttributions: 67, color: '#FF7819' },
-                { channel: 'LinkedIn Ads', attribution: 5.7, totalValue: 2400, totalAttributions: 34, color: '#4B287D' }
-            ];
-        }
-        
-        if (typeof Chart === 'undefined') {
-            console.error('HeuristicModelsView: Chart.js not available');
-            return;
-        }
-        
-        console.log('HeuristicModelsView: Creating attribution horizontal bar chart...');
-        
-        const ctx = canvas.getContext('2d');
+        console.log('Rendering attribution chart with', this.attributionData.length, 'channels');
         
         if (this.attributionChart) {
             this.attributionChart.destroy();
         }
         
-        try {
-            this.attributionChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: this.attributionData.map(item => item.channel),
-                    datasets: [{
-                        label: 'Attribution %',
-                        data: this.attributionData.map(item => item.attribution),
-                        backgroundColor: this.attributionData.map(item => item.color),
-                        borderColor: this.attributionData.map(item => item.color),
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    indexAxis: 'y', // This makes it horizontal in Chart.js 3+
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return context.dataset.label + ': ' + context.parsed.x.toFixed(1) + '%';
-                                }
-                            }
+        const ctx = canvas.getContext('2d');
+        this.attributionChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: this.attributionData.map(d => d.channel),
+                datasets: [{
+                    label: 'Attribution %',
+                    data: this.attributionData.map(d => d.attribution),
+                    backgroundColor: this.attributionData.map(d => d.color),
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => `${context.parsed.x.toFixed(1)}%`
                         }
-                    },
-                    scales: {
-                        x: {
-                            beginAtZero: true,
-                            max: 100,
-                            ticks: {
-                                callback: function(value) {
-                                    return value + '%';
-                                }
-                            },
-                            grid: {
-                                color: '#E5E5E5'
-                            }
-                        },
-                        y: {
-                            ticks: {
-                                font: {
-                                    size: 12
-                                }
-                            },
-                            grid: {
-                                display: false
-                            }
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        max: 100,
+                        ticks: {
+                            callback: (value) => value + '%'
                         }
                     }
                 }
-            });
-            
-            console.log('HeuristicModelsView: Attribution chart created successfully');
-            
-        } catch (error) {
-            console.error('HeuristicModelsView: Error creating attribution chart:', error);
-            throw error;
-        }
+            }
+        });
+        
+        console.log('Attribution chart rendered');
     }
     
-    /**
-     * Render timeline line chart
-     */
     renderTimelineChart() {
-        const canvas = this.template.querySelector('[data-chart="attribution-timeline"] canvas');
+        const canvas = this.template.querySelector('canvas.timeline-chart');
         
         if (!canvas) {
-            console.error('HeuristicModelsView: Timeline chart canvas not found');
+            console.error('Timeline chart canvas not found');
             return;
         }
         
-        if (typeof Chart === 'undefined') {
-            console.error('HeuristicModelsView: Chart.js not available');
-            return;
-        }
-        
-        // Ensure timeline data is available
-        if (!this.timelineData || !this.timelineData.labels) {
-            console.warn('HeuristicModelsView: No timeline data available, using demo data');
-            this.timelineData = {
-                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-                datasets: [
-                    {
-                        label: 'Google Ads',
-                        data: [32, 35, 38, 35, 33, 36],
-                        borderColor: '#0080FF',
-                        backgroundColor: '#0080FF20',
-                        borderWidth: 2,
-                        fill: false,
-                        tension: 0.1
-                    },
-                    {
-                        label: 'Email Marketing', 
-                        data: [25, 28, 31, 29, 27, 30],
-                        borderColor: '#34CC8D',
-                        backgroundColor: '#34CC8D20',
-                        borderWidth: 2,
-                        fill: false,
-                        tension: 0.1
-                    },
-                    {
-                        label: 'Facebook Ads',
-                        data: [15, 18, 20, 18, 16, 19],
-                        borderColor: '#A22FB6',
-                        backgroundColor: '#A22FB620',
-                        borderWidth: 2,
-                        fill: false,
-                        tension: 0.1
-                    }
-                ]
-            };
-        }
-        
-        console.log('HeuristicModelsView: Creating timeline line chart...');
-        
-        const ctx = canvas.getContext('2d');
+        console.log('Rendering timeline chart');
         
         if (this.timelineChart) {
             this.timelineChart.destroy();
         }
         
-        try {
-            this.timelineChart = new Chart(ctx, {
-                type: 'line',
-                data: this.timelineData,
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: {
-                                usePointStyle: true,
-                                padding: 20
-                            }
-                        },
-                        tooltip: {
-                            mode: 'index',
-                            intersect: false,
-                            callbacks: {
-                                label: function(context) {
-                                    return context.dataset.label + ': ' + context.parsed.y.toFixed(1) + '%';
-                                }
-                            }
-                        }
-                    },
-                    interaction: {
-                        mode: 'nearest',
-                        axis: 'x',
-                        intersect: false
-                    },
-                    scales: {
-                        x: {
-                            display: true,
-                            grid: {
-                                color: '#E5E5E5'
-                            }
-                        },
-                        y: {
-                            display: true,
-                            beginAtZero: true,
-                            max: 100,
-                            ticks: {
-                                callback: function(value) {
-                                    return value + '%';
-                                }
-                            },
-                            grid: {
-                                color: '#E5E5E5'
-                            }
+        const ctx = canvas.getContext('2d');
+        this.timelineChart = new Chart(ctx, {
+            type: 'line',
+            data: this.timelineData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'bottom'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: (value) => value + '%'
                         }
                     }
                 }
-            });
-            
-            console.log('HeuristicModelsView: Timeline chart created successfully');
-            
-        } catch (error) {
-            console.error('HeuristicModelsView: Error creating timeline chart:', error);
-            throw error;
-        }
+            }
+        });
+        
+        console.log('Timeline chart rendered');
     }
     
-    /**
-     * Render journey performance scatter plot
-     */
     renderJourneyChart() {
-        const canvas = this.template.querySelector('[data-chart="journey-performance"] canvas');
+        const canvas = this.template.querySelector('canvas.journey-chart');
         
         if (!canvas) {
-            console.error('HeuristicModelsView: Journey chart canvas not found');
+            console.error('Journey chart canvas not found');
             return;
         }
         
-        if (typeof Chart === 'undefined') {
-            console.error('HeuristicModelsView: Chart.js not available');
-            return;
-        }
-        
-        // Ensure journey performance data is available
-        if (!this.journeyPerformanceData || !this.journeyPerformanceData.datasets) {
-            console.warn('HeuristicModelsView: No journey performance data available, using demo data');
-            this.journeyPerformanceData = {
-                datasets: [
-                    {
-                        label: 'Converted Journeys',
-                        data: [
-                            { x: 2, y: 45 }, { x: 3, y: 52 }, { x: 4, y: 48 }, { x: 5, y: 55 }, 
-                            { x: 6, y: 42 }, { x: 7, y: 38 }, { x: 8, y: 35 }
-                        ],
-                        backgroundColor: '#34CC8D',
-                        borderColor: '#329146',
-                        borderWidth: 1
-                    },
-                    {
-                        label: 'Non-converted Journeys',
-                        data: [
-                            { x: 2, y: 25 }, { x: 3, y: 28 }, { x: 4, y: 22 }, { x: 5, y: 30 },
-                            { x: 6, y: 18 }, { x: 7, y: 15 }, { x: 8, y: 12 }
-                        ],
-                        backgroundColor: '#F63223',
-                        borderColor: '#E63223',
-                        borderWidth: 1
-                    }
-                ]
-            };
-        }
-        
-        console.log('HeuristicModelsView: Creating journey performance scatter chart...');
-        
-        const ctx = canvas.getContext('2d');
+        console.log('Rendering journey chart');
         
         if (this.journeyChart) {
             this.journeyChart.destroy();
         }
         
-        try {
-            this.journeyChart = new Chart(ctx, {
-                type: 'scatter',
-                data: this.journeyPerformanceData,
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
+        const ctx = canvas.getContext('2d');
+        this.journeyChart = new Chart(ctx, {
+            type: 'scatter',
+            data: this.journeyPerformanceData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    }
+                },
+                scales: {
+                    x: {
+                        title: {
                             display: true,
-                            position: 'top'
+                            text: 'Journey Length (Touchpoints)'
                         },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return context.dataset.label + ': (' + context.parsed.x + ' touchpoints, ' + context.parsed.y + '% impact)';
-                                }
-                            }
-                        }
+                        min: 1,
+                        max: 9
                     },
-                    scales: {
-                        x: {
-                            type: 'linear',
-                            position: 'bottom',
-                            title: {
-                                display: true,
-                                text: 'Journey Length (Touchpoints)'
-                            },
-                            min: 1,
-                            max: 9,
-                            ticks: {
-                                stepSize: 1
-                            },
-                            grid: {
-                                color: '#E5E5E5'
-                            }
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Attribution Impact (%)'
                         },
-                        y: {
-                            title: {
-                                display: true,
-                                text: 'Attribution Impact (%)'
-                            },
-                            beginAtZero: true,
-                            max: 80,
-                            ticks: {
-                                callback: function(value) {
-                                    return value + '%';
-                                }
-                            },
-                            grid: {
-                                color: '#E5E5E5'
-                            }
-                        }
+                        beginAtZero: true
                     }
                 }
-            });
-            
-            console.log('HeuristicModelsView: Journey performance chart created successfully');
-            
-        } catch (error) {
-            console.error('HeuristicModelsView: Error creating journey performance chart:', error);
-            throw error;
-        }
+            }
+        });
+        
+        console.log('Journey chart rendered');
     }
     
-    /**
-     * Handle model selection change
-     */
     async handleModelChange(event) {
-        const newModel = event.target.value;
-        if (newModel === this.selectedModel) return;
+        const previousModel = this.selectedModel;
+        this.selectedModel = event.detail.value;
         
-        this.selectedModel = newModel;
+        console.log(`Model changed from ${previousModel} to ${this.selectedModel}`);
+        
         this.updateSelectedModelInfo();
         
         this.isLoading = true;
         try {
             await this.loadAttributionData();
-            await this.renderCharts();
+            await this.renderChartsWhenReady();
+            
+            this.showToast('Success', 
+                `Switched to ${this.selectedModelLabel}`, 
+                'success');
         } catch (error) {
-            console.error('Error changing model:', error);
-            this.showToast('Error', 'Failed to load data for selected model', 'error');
+            console.error('Failed to load data for new model:', error);
+            this.showToast('Error', 
+                'Failed to load attribution data for selected model', 
+                'error');
+            this.selectedModel = previousModel;
         } finally {
             this.isLoading = false;
         }
     }
     
-    /**
-     * Handle view change
-     */
     handleViewChange(event) {
-        this.selectedView = event.target.value;
-        // Could implement view-specific filtering or highlighting
-        console.log('View changed to:', this.selectedView);
+        this.selectedView = event.detail.value;
     }
     
-    /**
-     * Handle attribution calculation
-     */
     async handleCalculateAttribution() {
-        if (this.journeyIds.length === 0) {
-            this.showToast('Warning', 'No customer journeys found. Please adjust your filters.', 'warning');
+        if (this.isCalculating) {
+            this.showToast('Info', 'Attribution calculation already in progress', 'info');
+            return;
+        }
+        
+        if (!this.journeyIds || this.journeyIds.length === 0) {
+            this.showToast('Warning', 'No customer journeys available for calculation', 'warning');
             return;
         }
         
         this.isCalculating = true;
-        this.calculationProgress = 'Initializing calculation...';
+        this.calculationProgress = 'Calculating attribution for all 5 HAM models...';
         
         try {
-            await calculateAttribution({ journeyIds: this.journeyIds, attributionModel: this.selectedModel });
+            const allHAMModels = ['FirstTouch', 'LastTouch', 'Linear', 'TimeDecay', 'PositionBased'];
             
-            this.calculationProgress = 'Loading updated results...';
+            console.log(`Starting attribution calculation for ${this.journeyIds.length} journeys`);
+            console.log('Models:', allHAMModels);
+            
+            const result = await calculateMultipleAttributions({
+                journeyIds: this.journeyIds,
+                selectedModels: allHAMModels
+            });
+            
+            console.log('Attribution calculation result:', result);
+            
+            if (result.failedCount > 0) {
+                this.showToast('Warning', 
+                    `${result.processedModels} of ${allHAMModels.length} models calculated successfully. ${result.failedCount} failed.`, 
+                    'warning');
+            } else {
+                this.showToast('Success', 
+                    `All 5 HAM models calculated successfully for ${result.totalJourneys} journeys`, 
+                    'success');
+            }
+            
             await this.loadAttributionData();
-            await this.renderCharts();
-            
-            this.showToast('Success', `${this.selectedModel} attribution calculated successfully`, 'success');
+            await this.renderChartsWhenReady();
             
         } catch (error) {
             console.error('Attribution calculation error:', error);
-            this.showToast('Error', 'Attribution calculation failed', 'error');
+            this.showToast('Error', 
+                'Attribution calculation failed: ' + (error.body?.message || error.message), 
+                'error');
         } finally {
             this.isCalculating = false;
             this.calculationProgress = '';
         }
     }
     
-    /**
-     * Handle data export
-     */
     handleExportData() {
-        // Implement CSV export functionality
         const csvData = this.prepareExportData();
         this.downloadCSV(csvData, `attribution_${this.selectedModel}_${Date.now()}.csv`);
         this.showToast('Success', 'Data exported successfully', 'success');
     }
     
-    /**
-     * Public method for filter updates from parent
-     */
     @api
     async handleFilterUpdate(filterData) {
         this.startDate = filterData.startDate;
@@ -1108,15 +604,11 @@ export default class HeuristicModelsView extends LightningElement {
         await this.loadInitialData();
     }
     
-    /**
-     * Public method for data refresh
-     */
     @api
     async refreshData() {
         await this.loadInitialData();
     }
     
-    // Helper methods
     updateSelectedModelInfo() {
         this.selectedModelInfo = this.modelOptions.find(model => model.value === this.selectedModel);
     }
@@ -1124,34 +616,40 @@ export default class HeuristicModelsView extends LightningElement {
     getChannelColor(channel) {
         const colorMap = {
             'Google Ads': '#0080FF',
+            'Google_Ads': '#0080FF',
             'Facebook Ads': '#A22FB6',
+            'Facebook_Ads': '#A22FB6',
             'LinkedIn Ads': '#4B287D',
+            'LinkedIn_Ads': '#4B287D',
             'Email Marketing': '#34CC8D',
+            'Email_Marketing': '#34CC8D',
             'Events': '#FF7819',
             'Content/Website/SEO': '#26C7C3',
+            'Content_Website_SEO': '#26C7C3',
             'App Store': '#2850AF',
-            'Organic Social': '#E33095'
+            'App_Store': '#2850AF',
+            'Organic Social': '#E33095',
+            'Organic_Social': '#E33095'
         };
         return colorMap[channel] || '#6B7280';
     }
     
     generateMonthlyVariation(baseValue, months) {
         return Array.from({ length: months }, () => {
-            const variation = (Math.random() - 0.5) * 0.3; // ±15% variation
+            const variation = (Math.random() - 0.5) * 0.3;
             return Math.max(0, Math.min(100, baseValue * (1 + variation)));
         });
     }
     
     generateScatterData(count, isConverted) {
         return Array.from({ length: count }, () => ({
-            x: Math.floor(Math.random() * 7) + 2, // Journey length 2-8
-            y: Math.random() * (isConverted ? 60 : 40) + (isConverted ? 20 : 0) // Attribution impact
+            x: Math.floor(Math.random() * 7) + 2,
+            y: Math.random() * (isConverted ? 60 : 40) + (isConverted ? 20 : 0)
         }));
     }
     
     handleChannelSelection(channel) {
         console.log('Channel selected:', channel);
-        // Could highlight the channel across all visualizations
     }
     
     prepareExportData() {
@@ -1186,7 +684,6 @@ export default class HeuristicModelsView extends LightningElement {
         this.dispatchEvent(event);
     }
     
-    // Computed properties
     get selectedModelLabel() {
         return this.selectedModelInfo ? this.selectedModelInfo.label : this.selectedModel;
     }
@@ -1227,7 +724,6 @@ export default class HeuristicModelsView extends LightningElement {
         return this.journeyPerformanceData && this.journeyPerformanceData.datasets && this.journeyPerformanceData.datasets.length > 0;
     }
     
-    // Event handlers for table and chart interactions
     handleCampaignSelection(event) {
         const selectedRows = event.detail.selectedRows;
         console.log('Selected campaigns:', selectedRows);
@@ -1237,7 +733,6 @@ export default class HeuristicModelsView extends LightningElement {
         this.sortedBy = event.detail.fieldName;
         this.sortedDirection = event.detail.sortDirection;
         
-        // Sort campaign data
         const fieldName = this.sortedBy;
         const isReverse = this.sortedDirection === 'desc';
         
@@ -1256,7 +751,6 @@ export default class HeuristicModelsView extends LightningElement {
         });
     }
     
-    // Chart action handlers
     handleRefreshAttributionChart() {
         this.isLoadingAttribution = true;
         setTimeout(() => {
